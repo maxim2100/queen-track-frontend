@@ -5,6 +5,7 @@ function HomePage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [stream, setStream] = useState(null);
   const videoRef = useRef(null);
+  const socketRef = useRef(null); 
 
   // איסוף רשימת מצלמות
   useEffect(() => {
@@ -35,6 +36,31 @@ function HomePage() {
         videoRef.current.srcObject = newStream;
       }
       setStream(newStream);
+
+      // התחברות ל-WebSocket
+      const socket = new WebSocket("ws://localhost:8000/video/live-stream");
+      socketRef.current = socket;
+
+      // שליחת פריימים מהמצלמה ל-WebSocket
+      const mediaRecorder = new MediaRecorder(newStream, { mimeType: "video/webm" });
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+          socket.send(event.data); // שליחת הפריימים
+        }
+      };
+
+      mediaRecorder.start(100); // הקלטת פריימים כל 100ms
+
+      // טיפול בסגירת WebSocket
+      socket.onclose = () => {
+        console.log("WebSocket disconnected");
+        mediaRecorder.stop();
+      };
+
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        mediaRecorder.stop();
+      };
     } catch (error) {
       console.error("Error accessing camera:", error);
     }
@@ -42,11 +68,17 @@ function HomePage() {
 
   const stopCamera = () => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
       setStream(null);
+    }
+
+    // סגירת WebSocket
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
     }
   };
 
@@ -136,15 +168,12 @@ function HomePage() {
         <button onClick={stopCamera} style={buttonStyle}>כבה מצלמה</button>
       </div>
 
-      {/* "מסגרת" הווידאו - 60% מרוחב העמוד, עם כיתוב LIVE */}
       <div style={videoWrapperStyle}>
-        {/* badge אדום שכותרתו LIVE */}
         {stream && (
           <div style={liveBadgeStyle}>
             LIVE
           </div>
         )}
-        {/* תצוגת הווידאו */}
         <video
           ref={videoRef}
           autoPlay
