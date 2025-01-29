@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 
+const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
+
 function HomePage() {
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
@@ -38,7 +40,7 @@ function HomePage() {
       setStream(newStream);
 
       // התחברות ל-WebSocket
-      const socket = new WebSocket("ws://localhost:8000/video/live-stream");
+      const socket = new WebSocket(`${websocketUrl}/video/live-stream`);
       socketRef.current = socket;
 
       // שליחת פריימים מהמצלמה ל-WebSocket
