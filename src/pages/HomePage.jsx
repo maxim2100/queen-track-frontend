@@ -34,35 +34,47 @@ function HomePage() {
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: selectedDeviceId } }
       });
+  
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
       }
+  
       setStream(newStream);
-
-      // התחברות ל-WebSocket
+  
+      
       const socket = new WebSocket(`${websocketUrl}/video/live-stream`);
       socketRef.current = socket;
-
-      // שליחת פריימים מהמצלמה ל-WebSocket
-      const mediaRecorder = new MediaRecorder(newStream, { mimeType: "video/webm" });
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
-          socket.send(event.data); // שליחת הפריימים
+  
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+  
+      const sendFrame = () => {
+        if (
+          videoRef.current &&
+          socket.readyState === WebSocket.OPEN
+        ) {
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (blob) socket.send(blob);
+          }, "image/jpeg");
         }
       };
-
-      mediaRecorder.start(100); // הקלטת פריימים כל 100ms
-
-      // טיפול בסגירת WebSocket
+  
+      const intervalId = setInterval(sendFrame, 100); 
+  
+      
       socket.onclose = () => {
         console.log("WebSocket disconnected");
-        mediaRecorder.stop();
+        clearInterval(intervalId);
       };
-
+  
       socket.onerror = (error) => {
         console.error("WebSocket error:", error);
-        mediaRecorder.stop();
+        clearInterval(intervalId);
       };
+  
     } catch (error) {
       console.error("Error accessing camera:", error);
     }
