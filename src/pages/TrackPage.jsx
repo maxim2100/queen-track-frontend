@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
 function TrackPage() {
   const [events, setEvents] = useState([]);
@@ -9,7 +10,7 @@ function TrackPage() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await fetch('http://localhost:8000/events'); 
+        const response = await fetch(`${backendUrl}/events`); 
         // כתובת לדוגמה; החליפו לפי מה שה-Backend מאזין
         if (!response.ok) {
           throw new Error('Failed to fetch events');

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
 function UploadPage() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -14,7 +15,7 @@ function UploadPage() {
       const formData = new FormData();
       formData.append('videoFile', selectedFile);
 
-      const response = await fetch('http://localhost:8000/upload', {
+      const response = await fetch(`${backendUrl}/video/upload`, {
         method: 'POST',
         body: formData
       });
