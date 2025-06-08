@@ -13,7 +13,7 @@ function UploadPage() {
     }
     try {
       const formData = new FormData();
-      formData.append('videoFile', selectedFile);
+      formData.append('file', selectedFile);
 
       const response = await fetch(`${backendUrl}/video/upload`, {
         method: 'POST',
