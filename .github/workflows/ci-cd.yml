@@ -1,0 +1,387 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: "18"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: npm run test:ci
+        continue-on-error: true
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          file: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Store test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results
+          path: |
+            coverage/
+            test-results.xml
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: test
+
+    strategy:
+      matrix:
+        environment: [staging, production]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Copy environment file
+        run: |
+          if [ "${{ matrix.environment }}" == "production" ]; then
+            cp .env.production .env
+          else
+            cp .env.staging .env
+          fi
+
+      - name: Build application
+        run: npm run build:${{ matrix.environment }}
+
+      - name: Run build tests
+        run: |
+          # Test that build directory exists and contains expected files
+          test -d build
+          test -f build/index.html
+          test -f build/static/js/main.*.js || test -f build/static/js/*.js
+          test -f build/static/css/main.*.css || test -f build/static/css/*.css
+
+      - name: Store build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-${{ matrix.environment }}
+          path: build/
+          retention-days: 7
+
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [test, build]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run npm audit
+        run: npm audit --audit-level high
+
+      - name: Run dependency check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "queen-track-frontend"
+          path: "."
+          format: "HTML"
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-scan-results
+          path: reports/
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-staging
+          path: build/
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy to staging server
+        env:
+          SERVER_HOST: "162.55.53.52"
+          SERVER_USER: "root"
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_PORT: "3002"
+          SERVER_PATH: "/var/www/queen-track-staging"
+        run: |
+          echo "Deploying to staging server..."
+
+          # Create deployment package
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          PACKAGE_NAME="queen-track-frontend-staging-$TIMESTAMP.tar.gz"
+          tar -czf "$PACKAGE_NAME" -C build .
+
+          # Upload and deploy
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
+
+          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << 'EOF'
+            set -e
+            
+            # Create backup
+            if [ -d "$SERVER_PATH" ]; then
+              cp -r "$SERVER_PATH" "$SERVER_PATH.backup.$TIMESTAMP"
+            fi
+            
+            # Deploy new version
+            mkdir -p "$SERVER_PATH"
+            cd /tmp
+            tar -xzf "$PACKAGE_NAME" -C "$SERVER_PATH"
+            chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
+            chmod -R 755 "$SERVER_PATH"
+            
+            # Configure Nginx
+            cat > /etc/nginx/sites-available/queen-track-staging << 'NGINX_EOF'
+          server {
+              listen 3002;
+              server_name 162.55.53.52;
+              root /var/www/queen-track-staging;
+              index index.html;
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+
+              location /health {
+                  return 200 "healthy\n";
+                  add_header Content-Type text/plain;
+              }
+
+              gzip on;
+              gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+          }
+          NGINX_EOF
+            
+            ln -sf /etc/nginx/sites-available/queen-track-staging /etc/nginx/sites-enabled/
+            nginx -t && systemctl reload nginx
+            
+            # Clean up
+            rm -f "/tmp/$PACKAGE_NAME"
+          EOF
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on staging..."
+          sleep 10
+          curl -f http://162.55.53.52:3002/health || exit 1
+          curl -f http://162.55.53.52:3002/ >/dev/null 2>&1 || exit 1
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-production
+          path: build/
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy to production server
+        env:
+          SERVER_HOST: "162.55.53.52"
+          SERVER_USER: "root"
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_PORT: "3001"
+          SERVER_PATH: "/var/www/queen-track"
+        run: |
+          echo "Deploying to production server..."
+
+          # Create deployment package
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          PACKAGE_NAME="queen-track-frontend-production-$TIMESTAMP.tar.gz"
+          tar -czf "$PACKAGE_NAME" -C build .
+
+          # Upload and deploy
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
+
+          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << 'EOF'
+            set -e
+            
+            # Create backup
+            if [ -d "$SERVER_PATH" ]; then
+              cp -r "$SERVER_PATH" "$SERVER_PATH.backup.$TIMESTAMP"
+            fi
+            
+            # Deploy new version
+            mkdir -p "$SERVER_PATH"
+            cd /tmp
+            tar -xzf "$PACKAGE_NAME" -C "$SERVER_PATH"
+            chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
+            chmod -R 755 "$SERVER_PATH"
+            
+            # Configure Nginx
+            cat > /etc/nginx/sites-available/queen-track-production << 'NGINX_EOF'
+          server {
+              listen 3001;
+              server_name 162.55.53.52;
+              root /var/www/queen-track;
+              index index.html;
+
+              # Security headers
+              add_header X-Frame-Options "SAMEORIGIN" always;
+              add_header X-XSS-Protection "1; mode=block" always;
+              add_header X-Content-Type-Options "nosniff" always;
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+
+              location /health {
+                  return 200 "healthy\n";
+                  add_header Content-Type text/plain;
+              }
+
+              # Static assets caching
+              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                  expires 1y;
+                  add_header Cache-Control "public, immutable";
+              }
+
+              gzip on;
+              gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+          }
+          NGINX_EOF
+            
+            ln -sf /etc/nginx/sites-available/queen-track-production /etc/nginx/sites-enabled/
+            nginx -t && systemctl reload nginx
+            
+            # Clean up
+            rm -f "/tmp/$PACKAGE_NAME"
+          EOF
+
+      - name: Run production smoke tests
+        run: |
+          echo "Running smoke tests on production..."
+          sleep 10
+          curl -f http://162.55.53.52:3001/health || exit 1
+          curl -f http://162.55.53.52:3001/ >/dev/null 2>&1 || exit 1
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "🌐 Application URL: http://162.55.53.52:3001"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed!"
+
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+
+    steps:
+      - name: Clean up old artifacts
+        run: |
+          echo "Cleaning up old artifacts and temporary files..."
+          # Add cleanup logic here
