@@ -1,0 +1,36 @@
+# Development Dockerfile for Queen Track Frontend
+
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies for development
+RUN apk add --no-cache git
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Set environment variables for development
+ENV NODE_ENV=development
+ENV CHOKIDAR_USEPOLLING=true
+ENV GENERATE_SOURCEMAP=true
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S reactuser -u 1001 && \
+    chown -R reactuser:nodejs /app
+
+USER reactuser
+
+# Start development server
+CMD ["npm", "start"] 
