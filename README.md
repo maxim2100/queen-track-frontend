@@ -1,70 +1,149 @@
-# Getting Started with Create React App
+# Queen Track Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A modern React application for tracking and monitoring with camera integration and real-time WebSocket communication.
 
-## Available Scripts
+## 🚀 Quick Start
 
-In the project directory, you can run:
+### Prerequisites
 
-### `npm start`
+- Node.js 18+
+- npm or yarn
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Installation
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1. **Clone and install dependencies:**
 
-### `npm test`
+   ```bash
+   git clone <repository-url>
+   cd queen-track-frontend
+   npm install --legacy-peer-deps
+   ```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+2. **Set up environment:**
 
-### `npm run build`
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+3. **Start development server:**
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+   ```bash
+   npm start
+   ```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+4. **Run tests:**
+   ```bash
+   npm test
+   ```
 
-### `npm run eject`
+## 🏗️ Building for Production
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```bash
+npm run build:production
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 🚢 Deployment
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Automatic Deployment (Recommended)
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. **Set up GitHub secrets:**
 
-## Learn More
+   - Go to Repository Settings > Secrets and variables > Actions
+   - Add: `SERVER_PASSWORD` = your server password
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+2. **Deploy via Git:**
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+   ```bash
+   # Deploy to staging
+   git push origin develop
 
-### Code Splitting
+   # Deploy to production
+   git push origin main
+   ```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Manual Deployment
 
-### Analyzing the Bundle Size
+1. **Set up credentials:**
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+   ```bash
+   export SERVER_PASSWORD='your-server-password'
+   ```
 
-### Making a Progressive Web App
+2. **Deploy:**
+   ```bash
+   ./scripts/deploy.sh production  # or staging
+   ```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
-### Advanced Configuration
+## 🧪 Testing
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- **Unit tests:** `npm run test:unit`
+- **Integration tests:** `npm run test:integration`
+- **All tests:** `npm run test:ci`
+- **Coverage:** `npm run test:coverage`
 
-### Deployment
+## 🏗️ Project Structure
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+```
+src/
+├── components/         # Reusable UI components
+├── pages/             # Page components
+├── utils/             # Utility functions
+├── __tests__/         # Test files
+└── styles/            # CSS files
+```
 
-### `npm run build` fails to minify
+## 🔧 Available Scripts
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- `npm start` - Start development server
+- `npm run build` - Build for production
+- `npm test` - Run tests
+- `npm run lint` - Run ESLint
+- `npm run deploy:staging` - Deploy to staging
+- `npm run deploy:production` - Deploy to production
+
+## 🌐 Environment Configuration
+
+The application supports multiple environments:
+
+- **Development:** Local development with hot reloading
+- **Staging:** Testing environment (port 3002)
+- **Production:** Live environment (port 3001)
+
+## 🔒 Security
+
+- Never commit sensitive data (passwords, keys) to version control
+- Use environment variables for configuration
+- Use GitHub secrets for CI/CD credentials
+- Regular dependency updates via `npm audit`
+
+## 📊 Monitoring
+
+- Health checks available at `/health`
+- Application monitoring via browser dev tools
+- Server logs in `/var/log/nginx/`
+
+## 🤝 Contributing
+
+1. Create a feature branch
+2. Make changes
+3. Add tests
+4. Submit a pull request
+
+## 📞 Support
+
+For issues and questions:
+
+1. Check the [DEPLOYMENT.md](./DEPLOYMENT.md) guide
+2. Review GitHub Actions logs
+3. Check server logs
+4. Contact the development team
+
+---
+
+**Live URLs:**
+
+- Production: http://162.55.53.52:3001
+- Staging: http://162.55.53.52:3002
