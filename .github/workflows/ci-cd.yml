@@ -221,19 +221,66 @@ jobs:
           }
           NGINX_EOF
             
-            ln -sf /etc/nginx/sites-available/queen-track-staging /etc/nginx/sites-enabled/
-            nginx -t && systemctl reload nginx
-            
-            # Clean up
-            rm -f "/tmp/$PACKAGE_NAME"
+                      ln -sf /etc/nginx/sites-available/queen-track-staging /etc/nginx/sites-enabled/
+
+          # Test Nginx configuration
+          nginx -t
+          if [ $? -ne 0 ]; then
+            echo "❌ Nginx configuration test failed!"
+            exit 1
+          fi
+
+          # Reload Nginx
+          systemctl reload nginx || service nginx reload
+          sleep 2
+
+          # Verify Nginx is running and listening on port 3002
+          echo "🔍 Checking Nginx status..."
+          systemctl status nginx --no-pager || service nginx status
+
+          echo "🔍 Checking if port 3002 is listening..."
+          netstat -tlnp | grep :3002 || ss -tlnp | grep :3002
+
+          echo "🔍 Testing local connection..."
+          curl -f http://localhost:3002/health || echo "❌ Local health check failed"
+
+          # Clean up
+          rm -f "/tmp/$PACKAGE_NAME"
           EOF
 
       - name: Run smoke tests
         run: |
-          echo "Running smoke tests on staging..."
-          sleep 10
-          curl -f http://162.55.53.52:3002/health || exit 1
-          curl -f http://162.55.53.52:3002/ >/dev/null 2>&1 || exit 1
+          echo "🧪 Running smoke tests on staging..."
+
+          # Wait for service to be ready
+          echo "⏳ Waiting for service to start..."
+          sleep 15
+
+          # Test health endpoint with timeout and retries
+          echo "🏥 Testing health endpoint..."
+          for i in {1..5}; do
+            if curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3002/health; then
+              echo "✅ Health check passed on attempt $i"
+              break
+            else
+              echo "❌ Health check failed on attempt $i"
+              if [ $i -eq 5 ]; then
+                echo "🔍 Checking if port is open..."
+                nmap -p 3002 162.55.53.52 || echo "nmap not available"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+
+          # Test main page
+          echo "🌐 Testing main page..."
+          curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3002/ >/dev/null 2>&1 || {
+            echo "❌ Main page test failed"
+            exit 1
+          }
+
+          echo "✅ All smoke tests passed!"
 
   deploy-production:
     name: Deploy to Production
@@ -336,19 +383,66 @@ jobs:
           }
           NGINX_EOF
             
-            ln -sf /etc/nginx/sites-available/queen-track-production /etc/nginx/sites-enabled/
-            nginx -t && systemctl reload nginx
-            
-            # Clean up
-            rm -f "/tmp/$PACKAGE_NAME"
+                      ln -sf /etc/nginx/sites-available/queen-track-production /etc/nginx/sites-enabled/
+
+          # Test Nginx configuration
+          nginx -t
+          if [ $? -ne 0 ]; then
+            echo "❌ Nginx configuration test failed!"
+            exit 1
+          fi
+
+          # Reload Nginx
+          systemctl reload nginx || service nginx reload
+          sleep 2
+
+          # Verify Nginx is running and listening on port 3001
+          echo "🔍 Checking Nginx status..."
+          systemctl status nginx --no-pager || service nginx status
+
+          echo "🔍 Checking if port 3001 is listening..."
+          netstat -tlnp | grep :3001 || ss -tlnp | grep :3001
+
+          echo "🔍 Testing local connection..."
+          curl -f http://localhost:3001/health || echo "❌ Local health check failed"
+
+          # Clean up
+          rm -f "/tmp/$PACKAGE_NAME"
           EOF
 
       - name: Run production smoke tests
         run: |
-          echo "Running smoke tests on production..."
-          sleep 10
-          curl -f http://162.55.53.52:3001/health || exit 1
-          curl -f http://162.55.53.52:3001/ >/dev/null 2>&1 || exit 1
+          echo "🧪 Running smoke tests on production..."
+
+          # Wait for service to be ready
+          echo "⏳ Waiting for service to start..."
+          sleep 15
+
+          # Test health endpoint with timeout and retries
+          echo "🏥 Testing health endpoint..."
+          for i in {1..5}; do
+            if curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3001/health; then
+              echo "✅ Health check passed on attempt $i"
+              break
+            else
+              echo "❌ Health check failed on attempt $i"
+              if [ $i -eq 5 ]; then
+                echo "🔍 Checking if port is open..."
+                nmap -p 3001 162.55.53.52 || echo "nmap not available"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+
+          # Test main page
+          echo "🌐 Testing main page..."
+          curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3001/ >/dev/null 2>&1 || {
+            echo "❌ Main page test failed"
+            exit 1
+          }
+
+          echo "✅ All production smoke tests passed!"
 
       - name: Notify deployment success
         if: success()
