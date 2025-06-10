@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, stage]
   pull_request:
-    branches: [main]
+    branches: [main, stage]
 
 env:
   NODE_VERSION: "18"
