@@ -10,7 +10,7 @@ function HomePage() {
   const [stream, setStream] = useState(null);
   const [externalCameraStatus, setExternalCameraStatus] = useState("inactive"); // 'inactive', 'active', 'error'
   const [lastBeeStatus, setLastBeeStatus] = useState(null); // null, 'inside', 'outside'
-  const [cameraConfig, setCameraConfig] = useState({
+  const [, setCameraConfig] = useState({
     internalSelected: true,
     externalSelected: false
   });
@@ -32,19 +32,27 @@ function HomePage() {
         }
       })
       .catch((err) => {
+        // eslint-disable-next-line no-console
         console.error("Error enumerating devices:", err);
       });
   }, []);
 
   // Clean up when component unmounts
   useEffect(() => {
-    return () => {
+    const cleanup = () => {
       if (statusCheckIntervalRef.current) {
         clearInterval(statusCheckIntervalRef.current);
       }
-      stopCamera();
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
     };
-  }, []);
+    
+    return cleanup;
+  }, [stream]);
 
   const handleChangeInternalDevice = (event) => {
     setSelectedInternalDeviceId(event.target.value);
@@ -69,6 +77,7 @@ function HomePage() {
       });
       
       if (response.ok) {
+        // eslint-disable-next-line no-console
         console.log("Camera configuration saved successfully");
         // Update local config state to show both cameras are configured
         setCameraConfig({
@@ -76,9 +85,11 @@ function HomePage() {
           externalSelected: true
         });
       } else {
+        // eslint-disable-next-line no-console
         console.error("Failed to save camera configuration");
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Error saving camera config:", error);
     }
   };
@@ -100,6 +111,7 @@ function HomePage() {
             externalVideoRef.current.src = data.stream_url;
             externalVideoRef.current.load();
             externalVideoRef.current.play().catch(err => {
+              // eslint-disable-next-line no-console
               console.error("Error playing external video:", err);
             });
           }
@@ -108,6 +120,7 @@ function HomePage() {
         setExternalCameraStatus("error");
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Error checking external camera status:", error);
       setExternalCameraStatus("error");
     }
@@ -164,11 +177,13 @@ function HomePage() {
       };
       
       socket.onclose = () => {
+        // eslint-disable-next-line no-console
         console.log("WebSocket disconnected");
         clearInterval(intervalId);
       };
   
       socket.onerror = (error) => {
+        // eslint-disable-next-line no-console
         console.error("WebSocket error:", error);
         clearInterval(intervalId);
       };
@@ -183,6 +198,7 @@ function HomePage() {
       checkExternalCameraStatus();
   
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Error accessing camera:", error);
     }
   };

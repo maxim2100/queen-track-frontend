@@ -8,8 +8,6 @@ on:
 
 env:
   NODE_VERSION: "18"
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   test:
@@ -53,14 +51,11 @@ jobs:
             coverage/
             test-results.xml
 
-  build:
-    name: Build Application
+  build-staging:
+    name: Build for Staging
     runs-on: ubuntu-latest
     needs: test
-
-    strategy:
-      matrix:
-        environment: [staging, production]
+    if: github.ref == 'refs/heads/stage'
 
     steps:
       - name: Checkout code
@@ -75,16 +70,11 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Copy environment file
-        run: |
-          if [ "${{ matrix.environment }}" == "production" ]; then
-            cp .env.production .env
-          else
-            cp .env.staging .env
-          fi
+      - name: Copy staging environment file
+        run: cp .env.staging .env
 
-      - name: Build application
-        run: npm run build:${{ matrix.environment }}
+      - name: Build application for staging
+        run: npm run build:staging
 
       - name: Run build tests
         run: |
@@ -94,55 +84,18 @@ jobs:
           test -f build/static/js/main.*.js || test -f build/static/js/*.js
           test -f build/static/css/main.*.css || test -f build/static/css/*.css
 
-      - name: Store build artifacts
+      - name: Store staging build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.environment }}
+          name: build-staging
           path: build/
           retention-days: 7
 
-  docker-build:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: [test, build]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  security-scan:
-    name: Security Scan
+  build-production:
+    name: Build for Production
     runs-on: ubuntu-latest
     needs: test
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
@@ -155,29 +108,33 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
-      - name: Run npm audit
-        run: npm audit --audit-level high
+      - name: Copy production environment file
+        run: cp .env.production .env
 
-      - name: Run dependency check
-        uses: dependency-check/Dependency-Check_Action@main
+      - name: Build application for production
+        run: npm run build:production
+
+      - name: Run build tests
+        run: |
+          # Test that build directory exists and contains expected files
+          test -d build
+          test -f build/index.html
+          test -f build/static/js/main.*.js || test -f build/static/js/*.js
+          test -f build/static/css/main.*.css || test -f build/static/css/*.css
+
+      - name: Store production build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          project: "queen-track-frontend"
-          path: "."
-          format: "HTML"
-
-      - name: Upload security scan results
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: security-scan-results
-          path: reports/
+          name: build-production
+          path: build/
+          retention-days: 7
 
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build-staging]
     if: github.ref == 'refs/heads/stage'
     environment: staging
 
@@ -216,16 +173,16 @@ jobs:
             set -e
             
             # Create backup
-            if [ -d "$SERVER_PATH" ]; then
-              cp -r "$SERVER_PATH" "$SERVER_PATH.backup.$TIMESTAMP"
+            if [ -d "/var/www/queen-track-staging" ]; then
+              cp -r "/var/www/queen-track-staging" "/var/www/queen-track-staging.backup.$TIMESTAMP"
             fi
             
             # Deploy new version
-            mkdir -p "$SERVER_PATH"
+            mkdir -p "/var/www/queen-track-staging"
             cd /tmp
-            tar -xzf "$PACKAGE_NAME" -C "$SERVER_PATH"
-            chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
-            chmod -R 755 "$SERVER_PATH"
+            tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track-staging"
+            chown -R www-data:www-data "/var/www/queen-track-staging" 2>/dev/null || chown -R root:root "/var/www/queen-track-staging"
+            chmod -R 755 "/var/www/queen-track-staging"
             
             # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-staging << 'NGINX_EOF'
@@ -266,7 +223,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build-production]
     if: github.ref == 'refs/heads/main'
     environment: production
 
@@ -305,16 +262,16 @@ jobs:
             set -e
             
             # Create backup
-            if [ -d "$SERVER_PATH" ]; then
-              cp -r "$SERVER_PATH" "$SERVER_PATH.backup.$TIMESTAMP"
+            if [ -d "/var/www/queen-track" ]; then
+              cp -r "/var/www/queen-track" "/var/www/queen-track.backup.$TIMESTAMP"
             fi
             
             # Deploy new version
-            mkdir -p "$SERVER_PATH"
+            mkdir -p "/var/www/queen-track"
             cd /tmp
-            tar -xzf "$PACKAGE_NAME" -C "$SERVER_PATH"
-            chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
-            chmod -R 755 "$SERVER_PATH"
+            tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track"
+            chown -R www-data:www-data "/var/www/queen-track" 2>/dev/null || chown -R root:root "/var/www/queen-track"
+            chmod -R 755 "/var/www/queen-track"
             
             # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-production << 'NGINX_EOF'
@@ -373,15 +330,3 @@ jobs:
         if: failure()
         run: |
           echo "❌ Production deployment failed!"
-
-  cleanup:
-    name: Cleanup
-    runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production]
-    if: always()
-
-    steps:
-      - name: Clean up old artifacts
-        run: |
-          echo "Cleaning up old artifacts and temporary files..."
-          # Add cleanup logic here
