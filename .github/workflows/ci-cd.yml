@@ -169,8 +169,19 @@ jobs:
           # Upload and deploy
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
 
-                  sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+                          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
           set -e
+
+          # Install and setup Nginx if not already installed
+          if ! command -v nginx &> /dev/null; then
+            echo "Installing Nginx..."
+            apt update
+            apt install -y nginx
+          fi
+
+          # Start and enable Nginx
+          systemctl start nginx || service nginx start
+          systemctl enable nginx || true
 
           # Create backup
           if [ -d "/var/www/queen-track-staging" ]; then
@@ -183,8 +194,12 @@ jobs:
           tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track-staging"
           chown -R www-data:www-data "/var/www/queen-track-staging" 2>/dev/null || chown -R root:root "/var/www/queen-track-staging"
           chmod -R 755 "/var/www/queen-track-staging"
-            
-            # Configure Nginx
+
+          # Ensure Nginx directories exist
+          mkdir -p /etc/nginx/sites-available
+          mkdir -p /etc/nginx/sites-enabled
+
+          # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-staging << 'NGINX_EOF'
           server {
               listen 3002;
@@ -258,8 +273,19 @@ jobs:
           # Upload and deploy
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
 
-                  sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+                          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
           set -e
+
+          # Install and setup Nginx if not already installed
+          if ! command -v nginx &> /dev/null; then
+            echo "Installing Nginx..."
+            apt update
+            apt install -y nginx
+          fi
+
+          # Start and enable Nginx
+          systemctl start nginx || service nginx start
+          systemctl enable nginx || true
 
           # Create backup
           if [ -d "/var/www/queen-track" ]; then
@@ -272,8 +298,12 @@ jobs:
           tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track"
           chown -R www-data:www-data "/var/www/queen-track" 2>/dev/null || chown -R root:root "/var/www/queen-track"
           chmod -R 755 "/var/www/queen-track"
-            
-            # Configure Nginx
+
+          # Ensure Nginx directories exist
+          mkdir -p /etc/nginx/sites-available
+          mkdir -p /etc/nginx/sites-enabled
+
+          # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-production << 'NGINX_EOF'
           server {
               listen 3001;
