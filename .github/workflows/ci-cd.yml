@@ -241,8 +241,20 @@ jobs:
           echo "🔍 Checking if port 3002 is listening..."
           netstat -tlnp | grep :3002 || ss -tlnp | grep :3002
 
-          echo "🔍 Testing local connection..."
+                    echo "🔍 Testing local connection..."
           curl -f http://localhost:3002/health || echo "❌ Local health check failed"
+
+          # Check firewall and open port 3002 if needed
+          echo "🔧 Configuring firewall for port 3002..."
+          ufw allow 3002/tcp || iptables -I INPUT -p tcp --dport 3002 -j ACCEPT || echo "Firewall configuration failed"
+
+          # Verify Nginx is actually serving on all interfaces
+          echo "🔍 Checking Nginx listen configuration..."
+          nginx -T | grep -A 5 -B 5 "listen 3002" || echo "No listen 3002 found in config"
+
+          # Check what's actually listening on the port
+          echo "🔍 Final port check..."
+          netstat -tulnp | grep :3002 || ss -tulnp | grep :3002 || echo "Port 3002 not listening"
 
           # Clean up
           rm -f "/tmp/$PACKAGE_NAME"
@@ -403,8 +415,20 @@ jobs:
           echo "🔍 Checking if port 3001 is listening..."
           netstat -tlnp | grep :3001 || ss -tlnp | grep :3001
 
-          echo "🔍 Testing local connection..."
+                    echo "🔍 Testing local connection..."
           curl -f http://localhost:3001/health || echo "❌ Local health check failed"
+
+          # Check firewall and open port 3001 if needed
+          echo "🔧 Configuring firewall for port 3001..."
+          ufw allow 3001/tcp || iptables -I INPUT -p tcp --dport 3001 -j ACCEPT || echo "Firewall configuration failed"
+
+          # Verify Nginx is actually serving on all interfaces
+          echo "🔍 Checking Nginx listen configuration..."
+          nginx -T | grep -A 5 -B 5 "listen 3001" || echo "No listen 3001 found in config"
+
+          # Check what's actually listening on the port
+          echo "🔍 Final port check..."
+          netstat -tulnp | grep :3001 || ss -tulnp | grep :3001 || echo "Port 3001 not listening"
 
           # Clean up
           rm -f "/tmp/$PACKAGE_NAME"
