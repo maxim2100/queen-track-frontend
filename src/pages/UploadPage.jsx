@@ -13,7 +13,7 @@ function UploadPage() {
     }
     try {
       const formData = new FormData();
-      formData.append('videoFile', selectedFile);
+      formData.append('file', selectedFile);
 
       const response = await fetch(`${backendUrl}/video/upload`, {
         method: 'POST',
@@ -23,8 +23,10 @@ function UploadPage() {
         throw new Error('Upload failed');
       }
       setUploadStatus("Success");
+      // eslint-disable-next-line no-console
       console.log('Uploaded successfully!');
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(err);
       setUploadStatus("Error");
     }

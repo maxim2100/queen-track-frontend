@@ -1,0 +1,480 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, stage]
+  pull_request:
+    branches: [main, stage]
+
+env:
+  NODE_VERSION: "18"
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: npm run test:ci
+        continue-on-error: true
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          file: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Store test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            coverage/
+            test-results.xml
+
+  build-staging:
+    name: Build for Staging
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/stage'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Copy staging environment file
+        run: cp .env.staging .env
+
+      - name: Build application for staging
+        run: npm run build:staging
+
+      - name: Run build tests
+        run: |
+          # Test that build directory exists and contains expected files
+          test -d build
+          test -f build/index.html
+          test -f build/static/js/main.*.js || test -f build/static/js/*.js
+          test -f build/static/css/main.*.css || test -f build/static/css/*.css
+
+      - name: Store staging build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-staging
+          path: build/
+          retention-days: 7
+
+  build-production:
+    name: Build for Production
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Copy production environment file
+        run: cp .env.production .env
+
+      - name: Build application for production
+        run: npm run build:production
+
+      - name: Run build tests
+        run: |
+          # Test that build directory exists and contains expected files
+          test -d build
+          test -f build/index.html
+          test -f build/static/js/main.*.js || test -f build/static/js/*.js
+          test -f build/static/css/main.*.css || test -f build/static/css/*.css
+
+      - name: Store production build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-production
+          path: build/
+          retention-days: 7
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-staging]
+    if: github.ref == 'refs/heads/stage'
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-staging
+          path: build/
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy to staging server
+        env:
+          SERVER_HOST: "162.55.53.52"
+          SERVER_USER: "root"
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_PORT: "3002"
+          SERVER_PATH: "/var/www/queen-track-staging"
+        run: |
+          echo "Deploying to staging server..."
+
+          # Create deployment package
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          PACKAGE_NAME="queen-track-frontend-staging-$TIMESTAMP.tar.gz"
+          tar -czf "$PACKAGE_NAME" -C build .
+
+          # Upload and deploy
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
+
+                          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+          set -e
+
+          # Install and setup Nginx if not already installed
+          if ! command -v nginx &> /dev/null; then
+            echo "Installing Nginx..."
+            apt update
+            apt install -y nginx
+          fi
+
+          # Start and enable Nginx
+          systemctl start nginx || service nginx start
+          systemctl enable nginx || true
+
+          # Create backup
+          if [ -d "/var/www/queen-track-staging" ]; then
+            cp -r "/var/www/queen-track-staging" "/var/www/queen-track-staging.backup.$TIMESTAMP"
+          fi
+
+          # Deploy new version
+          mkdir -p "/var/www/queen-track-staging"
+          cd /tmp
+          tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track-staging"
+          chown -R www-data:www-data "/var/www/queen-track-staging" 2>/dev/null || chown -R root:root "/var/www/queen-track-staging"
+          chmod -R 755 "/var/www/queen-track-staging"
+
+          # Ensure Nginx directories exist
+          mkdir -p /etc/nginx/sites-available
+          mkdir -p /etc/nginx/sites-enabled
+
+          # Configure Nginx
+            cat > /etc/nginx/sites-available/queen-track-staging << 'NGINX_EOF'
+          server {
+              listen 3002;
+              server_name 162.55.53.52;
+              root /var/www/queen-track-staging;
+              index index.html;
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+
+              location /health {
+                  return 200 "healthy\n";
+                  add_header Content-Type text/plain;
+              }
+
+              gzip on;
+              gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+          }
+          NGINX_EOF
+            
+                      ln -sf /etc/nginx/sites-available/queen-track-staging /etc/nginx/sites-enabled/
+
+          # Test Nginx configuration
+          nginx -t
+          if [ $? -ne 0 ]; then
+            echo "❌ Nginx configuration test failed!"
+            exit 1
+          fi
+
+          # Reload Nginx
+          systemctl reload nginx || service nginx reload
+          sleep 2
+
+          # Verify Nginx is running and listening on port 3002
+          echo "🔍 Checking Nginx status..."
+          systemctl status nginx --no-pager || service nginx status
+
+          echo "🔍 Checking if port 3002 is listening..."
+          netstat -tlnp | grep :3002 || ss -tlnp | grep :3002
+
+                    echo "🔍 Testing local connection..."
+          curl -f http://localhost:3002/health || echo "❌ Local health check failed"
+
+          # Check firewall and open port 3002 if needed
+          echo "🔧 Configuring firewall for port 3002..."
+          ufw allow 3002/tcp || iptables -I INPUT -p tcp --dport 3002 -j ACCEPT || echo "Firewall configuration failed"
+
+          # Verify Nginx is actually serving on all interfaces
+          echo "🔍 Checking Nginx listen configuration..."
+          nginx -T | grep -A 5 -B 5 "listen 3002" || echo "No listen 3002 found in config"
+
+          # Check what's actually listening on the port
+          echo "🔍 Final port check..."
+          netstat -tulnp | grep :3002 || ss -tulnp | grep :3002 || echo "Port 3002 not listening"
+
+          # Clean up
+          rm -f "/tmp/$PACKAGE_NAME"
+          EOF
+
+      - name: Run smoke tests
+        run: |
+          echo "🧪 Running smoke tests on staging..."
+
+          # Wait for service to be ready
+          echo "⏳ Waiting for service to start..."
+          sleep 15
+
+          # Test health endpoint with timeout and retries
+          echo "🏥 Testing health endpoint..."
+          for i in {1..5}; do
+            if curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3002/health; then
+              echo "✅ Health check passed on attempt $i"
+              break
+            else
+              echo "❌ Health check failed on attempt $i"
+              if [ $i -eq 5 ]; then
+                echo "🔍 Checking if port is open..."
+                nmap -p 3002 162.55.53.52 || echo "nmap not available"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+
+          # Test main page
+          echo "🌐 Testing main page..."
+          curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3002/ >/dev/null 2>&1 || {
+            echo "❌ Main page test failed"
+            exit 1
+          }
+
+          echo "✅ All smoke tests passed!"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-production]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-production
+          path: build/
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy to production server
+        env:
+          SERVER_HOST: "162.55.53.52"
+          SERVER_USER: "root"
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_PORT: "3001"
+          SERVER_PATH: "/var/www/queen-track"
+        run: |
+          echo "Deploying to production server..."
+
+          # Create deployment package
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          PACKAGE_NAME="queen-track-frontend-production-$TIMESTAMP.tar.gz"
+          tar -czf "$PACKAGE_NAME" -C build .
+
+          # Upload and deploy
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
+
+                          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+          set -e
+
+          # Install and setup Nginx if not already installed
+          if ! command -v nginx &> /dev/null; then
+            echo "Installing Nginx..."
+            apt update
+            apt install -y nginx
+          fi
+
+          # Start and enable Nginx
+          systemctl start nginx || service nginx start
+          systemctl enable nginx || true
+
+          # Create backup
+          if [ -d "/var/www/queen-track" ]; then
+            cp -r "/var/www/queen-track" "/var/www/queen-track.backup.$TIMESTAMP"
+          fi
+
+          # Deploy new version
+          mkdir -p "/var/www/queen-track"
+          cd /tmp
+          tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track"
+          chown -R www-data:www-data "/var/www/queen-track" 2>/dev/null || chown -R root:root "/var/www/queen-track"
+          chmod -R 755 "/var/www/queen-track"
+
+          # Ensure Nginx directories exist
+          mkdir -p /etc/nginx/sites-available
+          mkdir -p /etc/nginx/sites-enabled
+
+          # Configure Nginx
+            cat > /etc/nginx/sites-available/queen-track-production << 'NGINX_EOF'
+          server {
+              listen 3001;
+              server_name 162.55.53.52;
+              root /var/www/queen-track;
+              index index.html;
+
+              # Security headers
+              add_header X-Frame-Options "SAMEORIGIN" always;
+              add_header X-XSS-Protection "1; mode=block" always;
+              add_header X-Content-Type-Options "nosniff" always;
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+
+              location /health {
+                  return 200 "healthy\n";
+                  add_header Content-Type text/plain;
+              }
+
+              # Static assets caching
+              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                  expires 1y;
+                  add_header Cache-Control "public, immutable";
+              }
+
+              gzip on;
+              gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+          }
+          NGINX_EOF
+            
+                      ln -sf /etc/nginx/sites-available/queen-track-production /etc/nginx/sites-enabled/
+
+          # Test Nginx configuration
+          nginx -t
+          if [ $? -ne 0 ]; then
+            echo "❌ Nginx configuration test failed!"
+            exit 1
+          fi
+
+          # Reload Nginx
+          systemctl reload nginx || service nginx reload
+          sleep 2
+
+          # Verify Nginx is running and listening on port 3001
+          echo "🔍 Checking Nginx status..."
+          systemctl status nginx --no-pager || service nginx status
+
+          echo "🔍 Checking if port 3001 is listening..."
+          netstat -tlnp | grep :3001 || ss -tlnp | grep :3001
+
+                    echo "🔍 Testing local connection..."
+          curl -f http://localhost:3001/health || echo "❌ Local health check failed"
+
+          # Check firewall and open port 3001 if needed
+          echo "🔧 Configuring firewall for port 3001..."
+          ufw allow 3001/tcp || iptables -I INPUT -p tcp --dport 3001 -j ACCEPT || echo "Firewall configuration failed"
+
+          # Verify Nginx is actually serving on all interfaces
+          echo "🔍 Checking Nginx listen configuration..."
+          nginx -T | grep -A 5 -B 5 "listen 3001" || echo "No listen 3001 found in config"
+
+          # Check what's actually listening on the port
+          echo "🔍 Final port check..."
+          netstat -tulnp | grep :3001 || ss -tulnp | grep :3001 || echo "Port 3001 not listening"
+
+          # Clean up
+          rm -f "/tmp/$PACKAGE_NAME"
+          EOF
+
+      - name: Run production smoke tests
+        run: |
+          echo "🧪 Running smoke tests on production..."
+
+          # Wait for service to be ready
+          echo "⏳ Waiting for service to start..."
+          sleep 15
+
+          # Test health endpoint with timeout and retries
+          echo "🏥 Testing health endpoint..."
+          for i in {1..5}; do
+            if curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3001/health; then
+              echo "✅ Health check passed on attempt $i"
+              break
+            else
+              echo "❌ Health check failed on attempt $i"
+              if [ $i -eq 5 ]; then
+                echo "🔍 Checking if port is open..."
+                nmap -p 3001 162.55.53.52 || echo "nmap not available"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+
+          # Test main page
+          echo "🌐 Testing main page..."
+          curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3001/ >/dev/null 2>&1 || {
+            echo "❌ Main page test failed"
+            exit 1
+          }
+
+          echo "✅ All production smoke tests passed!"
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "🌐 Application URL: http://162.55.53.52:3001"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed!"
