@@ -169,20 +169,20 @@ jobs:
           # Upload and deploy
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
 
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << 'EOF'
-            set -e
-            
-            # Create backup
-            if [ -d "/var/www/queen-track-staging" ]; then
-              cp -r "/var/www/queen-track-staging" "/var/www/queen-track-staging.backup.$TIMESTAMP"
-            fi
-            
-            # Deploy new version
-            mkdir -p "/var/www/queen-track-staging"
-            cd /tmp
-            tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track-staging"
-            chown -R www-data:www-data "/var/www/queen-track-staging" 2>/dev/null || chown -R root:root "/var/www/queen-track-staging"
-            chmod -R 755 "/var/www/queen-track-staging"
+                  sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+          set -e
+
+          # Create backup
+          if [ -d "/var/www/queen-track-staging" ]; then
+            cp -r "/var/www/queen-track-staging" "/var/www/queen-track-staging.backup.$TIMESTAMP"
+          fi
+
+          # Deploy new version
+          mkdir -p "/var/www/queen-track-staging"
+          cd /tmp
+          tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track-staging"
+          chown -R www-data:www-data "/var/www/queen-track-staging" 2>/dev/null || chown -R root:root "/var/www/queen-track-staging"
+          chmod -R 755 "/var/www/queen-track-staging"
             
             # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-staging << 'NGINX_EOF'
@@ -258,20 +258,20 @@ jobs:
           # Upload and deploy
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
 
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << 'EOF'
-            set -e
-            
-            # Create backup
-            if [ -d "/var/www/queen-track" ]; then
-              cp -r "/var/www/queen-track" "/var/www/queen-track.backup.$TIMESTAMP"
-            fi
-            
-            # Deploy new version
-            mkdir -p "/var/www/queen-track"
-            cd /tmp
-            tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track"
-            chown -R www-data:www-data "/var/www/queen-track" 2>/dev/null || chown -R root:root "/var/www/queen-track"
-            chmod -R 755 "/var/www/queen-track"
+                  sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+          set -e
+
+          # Create backup
+          if [ -d "/var/www/queen-track" ]; then
+            cp -r "/var/www/queen-track" "/var/www/queen-track.backup.$TIMESTAMP"
+          fi
+
+          # Deploy new version
+          mkdir -p "/var/www/queen-track"
+          cd /tmp
+          tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track"
+          chown -R www-data:www-data "/var/www/queen-track" 2>/dev/null || chown -R root:root "/var/www/queen-track"
+          chmod -R 755 "/var/www/queen-track"
             
             # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-production << 'NGINX_EOF'
