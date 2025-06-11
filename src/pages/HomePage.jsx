@@ -33,6 +33,7 @@ function HomePage() {
   useEffect(() => {
     // Check if mediaDevices is available (requires HTTPS or localhost)
     if (!navigator.mediaDevices) {
+      // eslint-disable-next-line no-console
       console.error("mediaDevices not available. Camera access requires HTTPS or localhost.");
       // Set a default message or fallback behavior
       setVideoDevices([]);
@@ -229,6 +230,7 @@ function HomePage() {
         
         // Check if mediaDevices is available
         if (!navigator.mediaDevices) {
+          // eslint-disable-next-line no-console
           console.error("Camera access not available. Requires HTTPS or localhost.");
           alert("Camera access requires HTTPS. Please use HTTPS to access the camera features.");
           return;
