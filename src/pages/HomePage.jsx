@@ -31,6 +31,14 @@ function HomePage() {
 
   // איסוף רשימת מצלמות
   useEffect(() => {
+    // Check if mediaDevices is available (requires HTTPS or localhost)
+    if (!navigator.mediaDevices) {
+      console.error("mediaDevices not available. Camera access requires HTTPS or localhost.");
+      // Set a default message or fallback behavior
+      setVideoDevices([]);
+      return;
+    }
+
     navigator.mediaDevices.enumerateDevices()
       .then((devices) => {
         const cameras = devices.filter((device) => device.kind === "videoinput");
@@ -44,6 +52,7 @@ function HomePage() {
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error("Error enumerating devices:", err);
+        setVideoDevices([]);
       });
   }, []);
 
@@ -217,6 +226,13 @@ function HomePage() {
       if (streamMode === "live") {
         // Original live camera functionality
         if (!selectedInternalDeviceId) return;
+        
+        // Check if mediaDevices is available
+        if (!navigator.mediaDevices) {
+          console.error("Camera access not available. Requires HTTPS or localhost.");
+          alert("Camera access requires HTTPS. Please use HTTPS to access the camera features.");
+          return;
+        }
         
         const newStream = await navigator.mediaDevices.getUserMedia({
           video: { deviceId: { exact: selectedInternalDeviceId } }
@@ -606,6 +622,24 @@ function HomePage() {
       </style>
       <h1 style={headerStyle}>ברוכים הבאים ל-Queen Track</h1>
       <p>בחר את המצלמות שלך והתחל לנטר את פעילות הדבורים</p>
+      
+      {/* HTTPS Warning */}
+      {!navigator.mediaDevices && (
+        <div style={{
+          backgroundColor: '#fff3cd',
+          border: '1px solid #ffeaa7',
+          borderRadius: '8px',
+          padding: '1rem',
+          margin: '1rem 0',
+          color: '#856404'
+        }}>
+          <h3 style={{margin: '0 0 0.5rem 0', color: '#856404'}}>⚠️ דרוש HTTPS לגישה למצלמה</h3>
+          <p style={{margin: 0}}>
+            גישה למצלמה דורשת חיבור מאובטח (HTTPS). כרגע האתר נפתח דרך HTTP, 
+            מה שמונע גישה למצלמות. ניתן עדיין להשתמש בשידור קובץ הווידאו לבדיקה.
+          </p>
+        </div>
+      )}
 
       <div style={configurationBoxStyle}>
         <h2>הגדרת מצלמות</h2>
@@ -657,9 +691,50 @@ function HomePage() {
             <div style={cameraSelectionContainerStyle}>
               <h3>מצלמת כניסה לכוורת</h3>
               <p>מצלמה זו תפקח על פתח הכוורת ותזהה כניסות ויציאות של הדבורה המסומנת</p>
+              {!navigator.mediaDevices ? (
+                <div style={{
+                  padding: '0.5rem',
+                  backgroundColor: '#f8f9fa',
+                  border: '1px solid #dee2e6',
+                  borderRadius: '4px',
+                  color: '#6c757d'
+                }}>
+                  גישה למצלמה לא זמינה (דרוש HTTPS)
+                </div>
+              ) : (
+                <select 
+                  value={selectedInternalDeviceId} 
+                  onChange={handleChangeInternalDevice} 
+                  style={selectStyle}
+                >
+                  {videoDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `מצלמה ${videoDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+          
+          {/* External Camera Selection */}
+          <div style={cameraSelectionContainerStyle}>
+            <h3>מצלמה חיצונית</h3>
+            <p>מצלמה זו תופעל אוטומטית כאשר הדבורה המסומנת יוצאת מהכוורת</p>
+            {!navigator.mediaDevices ? (
+              <div style={{
+                padding: '0.5rem',
+                backgroundColor: '#f8f9fa',
+                border: '1px solid #dee2e6',
+                borderRadius: '4px',
+                color: '#6c757d'
+              }}>
+                גישה למצלמה לא זמינה (דרוש HTTPS)
+              </div>
+            ) : (
               <select 
-                value={selectedInternalDeviceId} 
-                onChange={handleChangeInternalDevice} 
+                value={selectedExternalDeviceId} 
+                onChange={handleChangeExternalDevice} 
                 style={selectStyle}
               >
                 {videoDevices.map((device) => (
@@ -668,24 +743,7 @@ function HomePage() {
                   </option>
                 ))}
               </select>
-            </div>
-          )}
-          
-          {/* External Camera Selection */}
-          <div style={cameraSelectionContainerStyle}>
-            <h3>מצלמה חיצונית</h3>
-            <p>מצלמה זו תופעל אוטומטית כאשר הדבורה המסומנת יוצאת מהכוורת</p>
-            <select 
-              value={selectedExternalDeviceId} 
-              onChange={handleChangeExternalDevice} 
-              style={selectStyle}
-            >
-              {videoDevices.map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `מצלמה ${videoDevices.indexOf(device) + 1}`}
-                </option>
-              ))}
-            </select>
+            )}
           </div>
         </div>
         
