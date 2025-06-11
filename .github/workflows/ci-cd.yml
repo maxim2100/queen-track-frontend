@@ -207,16 +207,42 @@ jobs:
               root /var/www/queen-track-staging;
               index index.html;
 
-              location / {
-                  try_files $uri $uri/ /index.html;
-              }
-
+              # Health check endpoint
               location /health {
                   return 200 "healthy\n";
                   add_header Content-Type text/plain;
               }
 
+              # Static assets - serve directly
+              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                  expires 1y;
+                  add_header Cache-Control "public, immutable";
+                  try_files $uri =404;
+              }
+
+              # API proxy (if needed)
+              location /api/ {
+                  proxy_pass http://162.55.53.52:8000/;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+              }
+
+              # React Router - catch all other requests
+              location / {
+                  try_files $uri $uri/ @fallback;
+              }
+
+              # Fallback for React Router
+              location @fallback {
+                  rewrite ^.*$ /index.html last;
+              }
+
+              # Gzip compression
               gzip on;
+              gzip_vary on;
+              gzip_min_length 1024;
               gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
           }
           NGINX_EOF
@@ -375,22 +401,43 @@ jobs:
               add_header X-XSS-Protection "1; mode=block" always;
               add_header X-Content-Type-Options "nosniff" always;
 
-              location / {
-                  try_files $uri $uri/ /index.html;
-              }
-
+              # Health check endpoint
               location /health {
                   return 200 "healthy\n";
                   add_header Content-Type text/plain;
               }
 
-              # Static assets caching
+              # Static assets - serve directly with proper caching
               location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
                   expires 1y;
                   add_header Cache-Control "public, immutable";
+                  try_files $uri =404;
               }
 
+              # API proxy (if needed)
+              location /api/ {
+                  proxy_pass http://162.55.53.52:8000/;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+              }
+
+              # React Router - catch all other requests
+              location / {
+                  try_files $uri $uri/ @fallback;
+              }
+
+              # Fallback for React Router
+              location @fallback {
+                  rewrite ^.*$ /index.html last;
+              }
+
+              # Gzip compression
               gzip on;
+              gzip_vary on;
+              gzip_min_length 1024;
+              gzip_proxied expired no-cache no-store private must-revalidate auth;
               gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
           }
           NGINX_EOF
