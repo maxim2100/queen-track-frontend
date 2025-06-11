@@ -640,6 +640,15 @@ function HomePage() {
               ? "קובץ הווידאו ישודר בלולאה ויועבר לשרת לעיבוד. החלף את הקובץ בתיקיית public/sample-videos/"
               : "המצלמה הנבחרת תשדר בזמן אמת"}
           </p>
+          
+          <div style={{backgroundColor: '#e8f5e8', padding: '1rem', marginTop: '1rem', borderRadius: '4px', border: '1px solid #4CAF50'}}>
+            <h4 style={{margin: '0 0 0.5rem 0', color: '#2e7d32'}}>🎯 זיהוי אירועים מבוסס קו מרכזי</h4>
+            <p style={{fontSize: '0.9rem', color: '#2e7d32', margin: 0}}>
+              <strong>קו צהוב במרכז המסך:</strong> מפריד בין צד ימין (תוך הכוורת) לצד שמאל (מחוץ לכוורת)<br/>
+              <strong>התחלת אירוע:</strong> דבורה עוברת מימין לשמאל (יוצאת מהכוורת) 🚪<br/>
+              <strong>סיום אירוע:</strong> דבורה עוברת משמאל לימין (חוזרת לכוורת) 🏠
+            </p>
+          </div>
         </div>
         
         <div style={cameraSelectorStyle}>
@@ -834,9 +843,10 @@ function HomePage() {
             <h4>הגדרות מערכת</h4>
             {debugInfo && (
               <div>
-                <p><strong>ROI:</strong> [{debugInfo.configuration.roi.join(', ')}]</p>
+                <p><strong>קו מרכזי X:</strong> {debugInfo.configuration.center_line_x || 'לא זמין'}</p>
+                <p><strong>רזולוציית מסגרת:</strong> {debugInfo.configuration.frame_width}x{debugInfo.configuration.frame_height}</p>
                 <p><strong>זיהויים רצופים נדרשים:</strong> {debugInfo.configuration.min_consecutive_detections}</p>
-                <p><strong>זמן המתנה בין מעברים:</strong> {debugInfo.configuration.transition_cooldown}s</p>
+                <p><strong>מחפש מעבר:</strong> {debugInfo.debug_info?.looking_for_crossing || 'לא זמין'}</p>
               </div>
             )}
           </div>
@@ -853,6 +863,8 @@ function HomePage() {
                   ))}
                 </ul>
                 <p><strong>סף זיהוי:</strong> {modelInfo.detection_threshold}</p>
+                <p><strong>קו מרכזי:</strong> {modelInfo.center_line_x || 'לא זמין'}</p>
+                <p><strong>מימדי מסגרת:</strong> {modelInfo.frame_dimensions || 'לא זמין'}</p>
               </div>
             )}
           </div>
@@ -872,29 +884,36 @@ function HomePage() {
         )}
 
         <div style={{backgroundColor: '#d1ecf1', padding: '1rem', borderRadius: '6px', margin: '1rem 0', border: '1px solid #bee5eb'}}>
-          <h4>הסבר על המערכת החדשה</h4>
+          <h4>🎯 הסבר על מערכת הקו המרכזי החדשה</h4>
           <div style={{fontSize: '0.9rem', color: '#0c5460'}}>
             <p><strong>ההגיון החדש:</strong></p>
             <ul>
-              <li><strong>התחלת אירוע:</strong> דבורה מסומנת עוברת מחוץ → פנים → מחוץ (זה מפעיל אירוע!)</li>
-              <li><strong>כשאירוע מתחיל:</strong> שתי המצלמות מתחילות לצלם + שליחת מייל + שמירה במסד נתונים</li>
-              <li><strong>סיום אירוע:</strong> דבורה חוזרת פנימה (מחוץ → פנים) או השידור נגמר</li>
+              <li><strong>🟡 קו צהוב במרכז:</strong> מפריד בין צד ימין (תוך הכוורת) לצד שמאל (מחוץ לכוורת)</li>
+              <li><strong>🚪 התחלת אירוע:</strong> דבורה עוברת מימין לשמאל (יוצאת מהכוורת)</li>
+              <li><strong>🏠 סיום אירוע:</strong> דבורה עוברת משמאל לימין (חוזרת לכוורת)</li>
+              <li><strong>📧 התראות:</strong> מייל נשלח בהתחלה ובסיום כל אירוע</li>
+              <li><strong>🎥 הקלטה:</strong> שתי מצלמות מקליטות במהלך האירוע</li>
             </ul>
-            <p><strong>מה חדש:</strong></p>
+            <p><strong>מה השתנה:</strong></p>
             <ul>
-              <li>עקיבה אחר רצף התנועות (לא רק מעבר יחיד)</li>
-              <li>זיהוי של דפוס התנועה הספציפי שמעניין אותנו</li>
-              <li>הקלטה מתחילה רק כשהדבורה עוברת את כל הרצף</li>
-              <li>תמיכה ב-5 שניות הקלטה לאחור מהמצלמה הפנימית</li>
+              <li>פשטנו את הלוגיקה - רק מעבר אחד מפעיל/מסיים אירוע</li>
+              <li>קו אנכי פשוט במקום תיבת ROI מורכבת</li>
+              <li>זיהוי מיידי של כיוון החצייה</li>
+              <li>הקלטת וידאו עם buffer של 5 שניות</li>
+            </ul>
+            <p><strong>צבעי הנתיב:</strong></p>
+            <ul>
+              <li><span style={{color: '#ff8c00'}}>🟠 כתום:</span> דבורה מחוץ לכוורת (צד שמאל)</li>
+              <li><span style={{color: '#32cd32'}}>🟢 ירוק:</span> דבורה בתוך הכוורת (צד ימין)</li>
             </ul>
             <p><strong>כדי לבדוק:</strong></p>
             <ol>
-              <li>לחץ על "הגדר כ'בחוץ'" כדי להגדיר מצב התחלתי</li>
-              <li>השתמש בווידאו עם דבורה שעוברת: בחוץ → פנים → בחוץ</li>
-              <li>המערכת אמורה לזהות את הרצף ולהתחיל אירוע</li>
-              <li>כשהדבורה חוזרת פנימה, האירוע אמור להסתיים</li>
+              <li>לחץ על "הגדר כ'בפנים'" (דבורה מתחילה בצד ימין)</li>
+              <li>צפה כשהדבורה חוצה את הקו הצהוב משמאל לימין</li>
+              <li>המערכת אמורה להתחיל אירוע ולהציג "EVENT STARTED!"</li>
+              <li>כשהדבורה חוזרת וחוצה מימין לשמאל - האירוע יסתיים</li>
             </ol>
-            <p><strong>סטטוס נוכחי:</strong> אירוע פעיל = {eventActive ? 'כן' : 'לא'}, רצף = {statusSequence.join(' → ') || 'אין'}</p>
+            <p><strong>סטטוס נוכחי:</strong> אירוע פעיל = {eventActive ? 'כן' : 'לא'}, מיקום אחרון = {lastBeeStatus || 'לא זוהה'}</p>
           </div>
         </div>
       </div>
