@@ -40,15 +40,13 @@ function TrackPage() {
       return videoUrl;
     }
     
-    // If it's a relative URL starting with /videos/, construct full URL
-    if (videoUrl.startsWith('/videos/')) {
-      console.log(`${backendUrl}${videoUrl}`);
-      return `${backendUrl}${videoUrl}`;
-    }
-    
-    // Fallback: treat as filename and construct URL
-    console.log(`${backendUrl}/videos/${videoUrl}`);
-    return `${backendUrl}/videos/${videoUrl}`;
+          // If it's a relative URL starting with /videos/, construct full URL
+      if (videoUrl.startsWith('/videos/')) {
+        return `${backendUrl}${videoUrl}`;
+      }
+      
+      // Fallback: treat as filename and construct URL
+      return `${backendUrl}/videos/${videoUrl}`;
   };
 
   // Toggle video section visibility
