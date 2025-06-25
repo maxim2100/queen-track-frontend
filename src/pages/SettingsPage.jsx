@@ -313,6 +313,59 @@ const SettingsPage = () => {
       {/* ROI Settings */}
       <div style={{marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '8px'}}>
         <h2>📐 Region of Interest (ROI)</h2>
+        
+        {/* ROI Visual */}
+        <div style={{marginBottom: '20px', display: 'flex', justifyContent: 'center'}}>
+          <div style={{
+            position: 'relative',
+            width: '320px', // 1280 / 4
+            height: '180px', // 720 / 4
+            backgroundColor: 'white',
+            border: '2px solid #333',
+            borderRadius: '4px'
+          }}>
+            {/* Current ROI (black) */}
+            <div style={{
+              position: 'absolute',
+              left: `${(settings.processing.roi_x_min / 1280) * 320}px`,
+              top: `${(settings.processing.roi_y_min / 720) * 180}px`,
+              width: `${((settings.processing.roi_x_max - settings.processing.roi_x_min) / 1280) * 320}px`,
+              height: `${((settings.processing.roi_y_max - settings.processing.roi_y_min) / 720) * 180}px`,
+              border: '2px solid black',
+              backgroundColor: 'rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                fontSize: '10px',
+                color: 'black',
+                padding: '2px',
+                fontWeight: 'bold'
+              }}>
+                Current ROI
+              </div>
+            </div>
+            
+            {/* Coordinates text */}
+            <div style={{
+              position: 'absolute',
+              top: '-25px',
+              left: '0',
+              fontSize: '12px',
+              color: '#666'
+            }}>
+              (0,0)
+            </div>
+            <div style={{
+              position: 'absolute',
+              bottom: '-25px',
+              right: '0',
+              fontSize: '12px',
+              color: '#666'
+            }}>
+              (1280,720)
+            </div>
+          </div>
+        </div>
+        
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px'}}>
           <div>
             <label style={{display: 'block', marginBottom: '5px'}}>
@@ -455,6 +508,31 @@ const SettingsPage = () => {
             />
             Email on Bee Entrance
           </label>
+
+          <div style={{gridColumn: 'span 2'}}>
+            <label style={{display: 'block', marginBottom: '5px'}}>
+              הודעות מייל יישלחו לכתובת:
+            </label>
+            <input
+              type="email"
+              value={settings.processing.notification_email || ''}
+              onChange={(e) => updateProcessingSetting('notification_email', e.target.value)}
+              placeholder="example@gmail.com"
+              disabled={!settings.processing.email_notifications_enabled}
+              style={{
+                width: '100%', 
+                padding: '8px', 
+                border: '1px solid #ddd', 
+                borderRadius: '4px',
+                opacity: settings.processing.email_notifications_enabled ? 1 : 0.6
+              }}
+            />
+            {!settings.processing.notification_email && settings.processing.email_notifications_enabled && (
+              <small style={{color: '#ff6600', fontSize: '12px'}}>
+                * יש להגדיר כתובת מייל כדי לקבל התרעות
+              </small>
+            )}
+          </div>
         </div>
       </div>
 
