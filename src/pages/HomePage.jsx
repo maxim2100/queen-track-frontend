@@ -819,6 +819,18 @@ function HomePage() {
               autoPlay
               playsInline
               style={videoStyle}
+              onLoadedMetadata={() => {
+                // הפעלת המצלמה החיצונית כשהמצב active
+                if (externalVideoRef.current && selectedExternalDeviceId) {
+                  navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: selectedExternalDeviceId }
+                  }).then(stream => {
+                    externalVideoRef.current.srcObject = stream;
+                  }).catch(error => {
+                    console.error('Error accessing external camera:', error);
+                  });
+                }
+              }}
             />
           ) : (
             <div style={{
