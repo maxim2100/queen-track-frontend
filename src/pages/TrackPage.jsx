@@ -98,7 +98,7 @@ function TrackPage() {
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h1>רשימת אירועים</h1>
+      <h1 style={{ textAlign: 'right', marginBottom: '20px' }}>רשימת אירועים</h1>
       
       {events.length === 0 ? (
         <p>לא נמצאו אירועים.</p>
@@ -304,7 +304,8 @@ const eventHeaderStyle = {
   justifyContent: 'space-between',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: '10px'
+  gap: '10px',
+  flexDirection: 'row-reverse' // מידע בימין, כפתור בשמאל
 };
 
 const eventInfoStyle = {
