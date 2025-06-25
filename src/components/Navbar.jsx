@@ -85,6 +85,16 @@ function Navbar() {
             מעקב
           </Link>
         </li>
+        <li>
+          <Link 
+            to="/settings" 
+            style={linkStyle}
+            onMouseOver={handleMouseOver}
+            onMouseOut={handleMouseOut}
+          >
+            הגדרות
+          </Link>
+        </li>
       </ul>
     </nav>
   );

@@ -1,0 +1,327 @@
+.settings-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.settings-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.settings-header h1 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.settings-header p {
+  color: #666;
+  font-size: 1.1em;
+}
+
+.message {
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  border: 1px solid;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.message.success {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border-color: #81c784;
+}
+
+.message.error {
+  background-color: #ffebee;
+  color: #c62828;
+  border-color: #e57373;
+}
+
+.settings-section {
+  margin-bottom: 30px;
+  padding: 25px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+.settings-section:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.settings-section h2 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 1.4em;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-item label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  color: #444;
+  cursor: pointer;
+}
+
+.setting-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #007bff;
+  cursor: pointer;
+}
+
+.setting-item input[type="range"] {
+  width: 100%;
+  height: 6px;
+  background: #ddd;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  accent-color: #007bff;
+}
+
+.setting-item input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.setting-item input[type="text"]:focus {
+  border-color: #007bff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.preset-button {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+}
+
+.preset-button:hover {
+  background: linear-gradient(135deg, #0056b3, #004085);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.roi-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.roi-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.roi-preview {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.roi-preview p {
+  margin: 5px 0;
+  font-family: 'Courier New', monospace;
+  color: #495057;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 2px solid #f0f0f0;
+}
+
+.save-button, .reset-button {
+  padding: 14px 28px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  min-width: 160px;
+}
+
+.save-button {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  color: white;
+}
+
+.save-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1e7e34, #155724);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.save-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.reset-button {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+}
+
+.reset-button:hover {
+  background: linear-gradient(135deg, #c82333, #a71e2a);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 1.2em;
+  color: #666;
+}
+
+.error {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 1.2em;
+  color: #dc3545;
+  background: #f8d7da;
+  border-radius: 8px;
+  border: 1px solid #f5c6cb;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 15px;
+  }
+  
+  .settings-section {
+    padding: 20px;
+  }
+  
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .presets-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .roi-inputs {
+    grid-template-columns: 1fr;
+  }
+  
+  .settings-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .save-button, .reset-button {
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+@media (min-width: 769px) {
+  .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  
+  .settings-section h2 {
+    font-size: 1.5em;
+  }
+}
+
+/* Advanced Styling for Different Setting Types */
+.setting-item[data-type="detection"] {
+  border-left: 4px solid #007bff;
+  padding-left: 15px;
+}
+
+.setting-item[data-type="drawing"] {
+  border-left: 4px solid #28a745;
+  padding-left: 15px;
+}
+
+.setting-item[data-type="video"] {
+  border-left: 4px solid #ffc107;
+  padding-left: 15px;
+}
+
+.setting-item[data-type="email"] {
+  border-left: 4px solid #dc3545;
+  padding-left: 15px;
+}
+
+/* Tooltip styles for better UX */
+.setting-item[title] {
+  position: relative;
+}
+
+.setting-item[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: #333;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 0;
+  animation: tooltipFadeIn 0.3s ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+} 
