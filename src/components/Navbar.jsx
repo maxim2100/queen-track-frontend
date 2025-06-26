@@ -1,19 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
+const backendUrl = process.env.REACT_APP_BACKEND_URL;
+
 function Navbar() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [ws, setWs] = useState(null);
 
+  // פונקציה לטעינת התרעות מהמונגו
+  const loadNotificationsFromDB = async () => {
+    try {
+      const response = await fetch(`${backendUrl}/video/notifications`);
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        
+        // חישוב מספר התרעות שלא נקראו
+        const unreadCount = data.notifications.filter(n => !n.read).length;
+        setUnreadCount(unreadCount);
+      }
+    } catch (error) {
+      console.error('Error loading notifications from database:', error);
+    }
+  };
+
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
     const connectWebSocket = () => {
-      const websocket = new WebSocket(`ws://${window.location.hostname}:8000/video/notifications`);
+      const websocket = new WebSocket(`${websocketUrl}/video/notifications`);
       
       websocket.onopen = () => {
         console.log('Connected to notifications WebSocket');
+        // טעינת התרעות קיימות מהמונגו
+        loadNotificationsFromDB();
       };
 
       websocket.onmessage = (event) => {
@@ -52,7 +74,7 @@ function Navbar() {
   const addNotification = (notificationData) => {
     const newNotification = {
       id: Date.now(),
-      type: notificationData.event_type,
+      event_type: notificationData.event_type,
       message: notificationData.message,
       timestamp: new Date(notificationData.timestamp),
       read: false
@@ -62,9 +84,39 @@ function Navbar() {
     setUnreadCount(prev => prev + 1);
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setUnreadCount(0);
+  const markAllAsRead = async () => {
+    try {
+      const response = await fetch(`${backendUrl}/video/notifications/mark-all-read`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+      } else {
+        console.error('Failed to mark notifications as read');
+      }
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    try {
+      const response = await fetch(`${backendUrl}/video/notifications`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setNotifications([]);
+        setUnreadCount(0);
+        setShowNotifications(false);
+      } else {
+        console.error('Failed to delete notifications');
+      }
+    } catch (error) {
+      console.error('Error deleting notifications:', error);
+    }
   };
 
   const toggleNotifications = () => {
@@ -158,20 +210,43 @@ function Navbar() {
     color: '#333'
   };
 
+  const notificationHeaderStyle = {
+    padding: '10px',
+    borderBottom: '2px solid #ddd',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    backgroundColor: '#f8f9fa',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  };
+
+  const buttonStyle = {
+    background: 'none',
+    border: '1px solid #dc3545',
+    color: '#dc3545',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    marginLeft: '8px'
+  };
+
   const getNotificationIcon = (type) => {
     return type === 'exit' ? '🐝➡️' : '🐝⬅️';
   };
 
   const formatNotificationTime = (timestamp) => {
     const now = new Date();
-    const diff = now - timestamp;
+    const notifTime = new Date(timestamp);
+    const diff = now - notifTime;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     
     if (minutes < 1) return 'עכשיו';
     if (minutes < 60) return `לפני ${minutes} דקות`;
     if (hours < 24) return `לפני ${hours} שעות`;
-    return timestamp.toLocaleDateString('he-IL');
+    return notifTime.toLocaleDateString('he-IL');
   };
 
   return (
@@ -217,21 +292,37 @@ function Navbar() {
 
           {showNotifications && (
             <div style={notificationsDropdownStyle}>
-              <div style={{ padding: '10px', borderBottom: '2px solid #ddd', fontWeight: 'bold', textAlign: 'center' }}>
-                התרעות ({notifications.length})
+              <div style={notificationHeaderStyle}>
+                <span>התרעות ({notifications.length})</span>
+                <div>
+                  <button 
+                    style={buttonStyle}
+                    onClick={deleteAllNotifications}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#dc3545';
+                      e.target.style.color = 'white';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
+                      e.target.style.color = '#dc3545';
+                    }}
+                  >
+                    מחק הכל
+                  </button>
+                </div>
               </div>
               {notifications.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                  אין התרעות חדשות
+                  אין התרעות
                 </div>
               ) : (
                 notifications.map(notification => (
-                  <div key={notification.id} style={{
+                  <div key={notification.id || notification._id} style={{
                     ...notificationItemStyle,
                     backgroundColor: notification.read ? 'white' : '#f8f9fa'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>{getNotificationIcon(notification.type)}</span>
+                      <span>{getNotificationIcon(notification.event_type)}</span>
                       <div style={{ flex: 1 }}>
                         <div>{notification.message}</div>
                         <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>

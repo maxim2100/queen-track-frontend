@@ -6,6 +6,7 @@ function TrackPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedEvents, setExpandedEvents] = useState(new Set());
+  const [deletingEvents, setDeletingEvents] = useState(new Set());
   
   // Refs to store video elements for synchronized playback
   const videoRefs = useRef({});
@@ -86,6 +87,49 @@ function TrackPage() {
     }
   };
 
+  // Delete event function
+  const deleteEvent = async (eventId) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק את האירוע הזה? פעולה זו תמחק את האירוע ואת כל הווידאו הקשור אליו.')) {
+      return;
+    }
+
+    setDeletingEvents(prev => new Set([...prev, eventId]));
+
+    try {
+      const response = await fetch(`${backendUrl}/video/events/${eventId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete event');
+      }
+
+      // Remove the event from the state
+      setEvents(prev => prev.filter(event => {
+        const currentEventId = event.id || event._id;
+        return currentEventId !== eventId;
+      }));
+
+      // Remove from expanded events if it was expanded
+      setExpandedEvents(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+
+      alert('האירוע נמחק בהצלחה');
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      alert('שגיאה במחיקת האירוע: ' + error.message);
+    } finally {
+      setDeletingEvents(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+    }
+  };
+
   if (loading) {
     return <div style={{ padding: '1rem' }}>טוען נתונים...</div>;
   }
@@ -161,23 +205,39 @@ function TrackPage() {
                     )}
                   </div>
                   
-                  {hasVideos && (
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    {hasVideos && (
+                      <button
+                        onClick={() => toggleVideos(eventId)}
+                        style={{
+                          ...videoToggleButtonStyle,
+                          backgroundColor: isExpanded ? '#dc3545' : '#007bff'
+                        }}
+                      >
+                        {isExpanded ? 'הסתר וידאו' : 'הצג וידאו'}
+                      </button>
+                    )}
+                    
+                    {!hasVideos && (
+                      <span style={{ color: '#666', fontStyle: 'italic' }}>
+                        לא קיים וידאו
+                      </span>
+                    )}
+
+                    {/* Delete button */}
                     <button
-                      onClick={() => toggleVideos(eventId)}
+                      onClick={() => deleteEvent(eventId)}
+                      disabled={deletingEvents.has(eventId)}
                       style={{
-                        ...videoToggleButtonStyle,
-                        backgroundColor: isExpanded ? '#dc3545' : '#007bff'
+                        ...deleteButtonStyle,
+                        opacity: deletingEvents.has(eventId) ? 0.6 : 1,
+                        cursor: deletingEvents.has(eventId) ? 'not-allowed' : 'pointer'
                       }}
+                      title="מחק אירוע"
                     >
-                      {isExpanded ? 'הסתר וידאו' : 'הצג וידאו'}
+                      {deletingEvents.has(eventId) ? '🔄' : '🗑️'}
                     </button>
-                  )}
-                  
-                  {!hasVideos && (
-                    <span style={{ color: '#666', fontStyle: 'italic' }}>
-                      לא קיים וידאו
-                    </span>
-                  )}
+                  </div>
                 </div>
 
                 {/* Video Section */}
@@ -392,6 +452,17 @@ const linkStyle = {
   border: '1px solid #007bff',
   borderRadius: '4px',
   fontSize: '0.9em'
+};
+
+const deleteButtonStyle = {
+  padding: '8px 12px',
+  backgroundColor: '#dc3545',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  fontSize: '16px',
+  transition: 'all 0.2s'
 };
 
 export default TrackPage;
