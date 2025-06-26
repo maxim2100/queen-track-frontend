@@ -8,6 +8,7 @@ on:
 
 env:
   NODE_VERSION: "18"
+  PRODUCTION_DOMAIN: "queentrack.online"
 
 jobs:
   test:
@@ -292,7 +293,7 @@ jobs:
 
           # Wait for service to be ready
           echo "⏳ Waiting for service to start..."
-          sleep 15
+          sleep 30
 
           # Test health endpoint with timeout and retries
           echo "🏥 Testing health endpoint..."
@@ -307,7 +308,7 @@ jobs:
                 nmap -p 3002 162.55.53.52 || echo "nmap not available"
                 exit 1
               fi
-              sleep 5
+              sleep 10
             fi
           done
 
@@ -345,10 +346,10 @@ jobs:
           SERVER_HOST: "162.55.53.52"
           SERVER_USER: "root"
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          SERVER_PORT: "3001"
-          SERVER_PATH: "/var/www/queen-track"
+          SERVER_PORT: "443"
+          SERVER_PATH: "/var/www/queentrack.online"
         run: |
-          echo "Deploying to production server..."
+          echo "Deploying to production server with HTTPS..."
 
           # Create deployment package
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -361,59 +362,78 @@ jobs:
                           sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
           set -e
 
-          # Install and setup Nginx if not already installed
-          if ! command -v nginx &> /dev/null; then
-            echo "Installing Nginx..."
-            apt update
-            apt install -y nginx
-          fi
+          # Install required packages
+          apt update
+          apt install -y nginx certbot python3-certbot-nginx ufw
 
           # Start and enable Nginx
           systemctl start nginx || service nginx start
           systemctl enable nginx || true
 
           # Create backup
-          if [ -d "/var/www/queen-track" ]; then
-            cp -r "/var/www/queen-track" "/var/www/queen-track.backup.$TIMESTAMP"
+          if [ -d "$SERVER_PATH" ]; then
+            cp -r "$SERVER_PATH" "$SERVER_PATH.backup.$TIMESTAMP"
           fi
 
           # Deploy new version
-          mkdir -p "/var/www/queen-track"
+          mkdir -p "$SERVER_PATH"
           cd /tmp
-          tar -xzf "$PACKAGE_NAME" -C "/var/www/queen-track"
-          chown -R www-data:www-data "/var/www/queen-track" 2>/dev/null || chown -R root:root "/var/www/queen-track"
-          chmod -R 755 "/var/www/queen-track"
+          tar -xzf "$PACKAGE_NAME" -C "$SERVER_PATH"
+          chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
+          chmod -R 755 "$SERVER_PATH"
 
           # Ensure Nginx directories exist
           mkdir -p /etc/nginx/sites-available
           mkdir -p /etc/nginx/sites-enabled
 
-          # Configure Nginx
-            cat > /etc/nginx/sites-available/queen-track-production << 'NGINX_EOF'
+          # Configure Nginx for HTTPS
+            cat > /etc/nginx/sites-available/queentrack.online << 'NGINX_EOF'
           server {
-              listen 3001;
-              server_name 162.55.53.52;
-              root /var/www/queen-track;
+              listen 80;
+              server_name queentrack.online www.queentrack.online;
+              return 301 https://www.queentrack.online\$request_uri;
+          }
+
+          server {
+              listen 443 ssl http2;
+              server_name queentrack.online;
+              return 301 https://www.queentrack.online\$request_uri;
+          }
+
+          server {
+              listen 443 ssl http2;
+              server_name www.queentrack.online;
+              root $SERVER_PATH;
               index index.html;
+
+              # SSL configuration will be handled by certbot
+              ssl_certificate /etc/letsencrypt/live/www.queentrack.online/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/www.queentrack.online/privkey.pem;
+              ssl_protocols TLSv1.2 TLSv1.3;
+              ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;
+              ssl_prefer_server_ciphers off;
 
               # Security headers
               add_header X-Frame-Options "SAMEORIGIN" always;
               add_header X-XSS-Protection "1; mode=block" always;
               add_header X-Content-Type-Options "nosniff" always;
+              add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+              add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+              add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' ws: wss: https:;" always;
 
               # Health check endpoint
               location /health {
                   return 200 "healthy\n";
                   add_header Content-Type text/plain;
               }
-
+            
               # Static assets - serve directly with proper caching
               location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
                   expires 1y;
                   add_header Cache-Control "public, immutable";
                   try_files \$uri =404;
               }
-
+            
               # API proxy (if needed)
               location /api/ {
                   proxy_pass http://162.55.53.52:8000/;
@@ -422,7 +442,7 @@ jobs:
                   proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
                   proxy_set_header X-Forwarded-Proto \$scheme;
               }
-
+            
               # React Router - catch all other requests
               location / {
                   try_files \$uri \$uri/ @fallback;
@@ -432,7 +452,7 @@ jobs:
               location @fallback {
                   rewrite ^.*\$ /index.html last;
               }
-
+              
               # Gzip compression
               gzip on;
               gzip_vary on;
@@ -441,41 +461,37 @@ jobs:
               gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
           }
           NGINX_EOF
-            
-                      ln -sf /etc/nginx/sites-available/queen-track-production /etc/nginx/sites-enabled/
+
+                      ln -sf /etc/nginx/sites-available/queentrack.online /etc/nginx/sites-enabled/
+
+          # Configure firewall
+          ufw allow 'Nginx Full' || true
+          ufw allow 22 || true
+          ufw --force enable || true
 
           # Test Nginx configuration
           nginx -t
-          if [ $? -ne 0 ]; then
+          if [ \$? -ne 0 ]; then
             echo "❌ Nginx configuration test failed!"
             exit 1
           fi
 
           # Reload Nginx
           systemctl reload nginx || service nginx reload
-          sleep 2
 
-          # Verify Nginx is running and listening on port 3001
-          echo "🔍 Checking Nginx status..."
-          systemctl status nginx --no-pager || service nginx status
+          # Get SSL certificate if it doesn't exist
+          if [ ! -f /etc/letsencrypt/live/www.queentrack.online/fullchain.pem ]; then
+            echo "🔒 Obtaining SSL certificate..."
+            certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect
+          else
+            echo "🔒 SSL certificate already exists"
+          fi
 
-          echo "🔍 Checking if port 3001 is listening..."
-          netstat -tlnp | grep :3001 || ss -tlnp | grep :3001
+          # Verify SSL certificate renewal
+          certbot renew --dry-run || echo "Certificate renewal test failed"
 
-                    echo "🔍 Testing local connection..."
-          curl -f http://localhost:3001/health || echo "❌ Local health check failed"
-
-          # Check firewall and open port 3001 if needed
-          echo "🔧 Configuring firewall for port 3001..."
-          ufw allow 3001/tcp || iptables -I INPUT -p tcp --dport 3001 -j ACCEPT || echo "Firewall configuration failed"
-
-          # Verify Nginx is actually serving on all interfaces
-          echo "🔍 Checking Nginx listen configuration..."
-          nginx -T | grep -A 5 -B 5 "listen 3001" || echo "No listen 3001 found in config"
-
-          # Check what's actually listening on the port
-          echo "🔍 Final port check..."
-          netstat -tulnp | grep :3001 || ss -tulnp | grep :3001 || echo "Port 3001 not listening"
+          # Set up automatic certificate renewal
+          echo "0 12 * * * /usr/bin/certbot renew --quiet" | crontab -
 
           # Clean up
           rm -f "/tmp/$PACKAGE_NAME"
@@ -487,31 +503,40 @@ jobs:
 
           # Wait for service to be ready
           echo "⏳ Waiting for service to start..."
-          sleep 15
+          sleep 30
 
-          # Test health endpoint with timeout and retries
-          echo "🏥 Testing health endpoint..."
+          # Test HTTPS endpoint
+          echo "🔒 Testing HTTPS endpoint..."
           for i in {1..5}; do
-            if curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3001/health; then
-              echo "✅ Health check passed on attempt $i"
+            if curl -f --connect-timeout 15 --max-time 45 https://www.queentrack.online/health; then
+              echo "✅ HTTPS health check passed on attempt $i"
               break
             else
-              echo "❌ Health check failed on attempt $i"
+              echo "❌ HTTPS health check failed on attempt $i"
               if [ $i -eq 5 ]; then
-                echo "🔍 Checking if port is open..."
-                nmap -p 3001 162.55.53.52 || echo "nmap not available"
+                echo "🔍 Checking SSL certificate..."
+                openssl s_client -connect www.queentrack.online:443 -servername www.queentrack.online < /dev/null 2>/dev/null | openssl x509 -noout -text | grep -A 2 "Validity" || echo "SSL check failed"
                 exit 1
               fi
-              sleep 5
+              sleep 10
             fi
           done
 
           # Test main page
           echo "🌐 Testing main page..."
-          curl -f --connect-timeout 10 --max-time 30 http://162.55.53.52:3001/ >/dev/null 2>&1 || {
+          curl -f --connect-timeout 15 --max-time 45 https://www.queentrack.online/ >/dev/null 2>&1 || {
             echo "❌ Main page test failed"
             exit 1
           }
+
+          # Test redirect from HTTP to HTTPS
+          echo "🔄 Testing HTTP to HTTPS redirect..."
+          HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 http://www.queentrack.online/)
+          if [ "$HTTP_RESPONSE" = "301" ] || [ "$HTTP_RESPONSE" = "302" ]; then
+            echo "✅ HTTP to HTTPS redirect working"
+          else
+            echo "⚠️ HTTP to HTTPS redirect may not be working properly (response: $HTTP_RESPONSE)"
+          fi
 
           echo "✅ All production smoke tests passed!"
 
@@ -519,9 +544,12 @@ jobs:
         if: success()
         run: |
           echo "✅ Production deployment successful!"
-          echo "🌐 Application URL: http://162.55.53.52:3001"
+          echo "🌐 Application URL: https://www.queentrack.online"
+          echo "🔒 SSL Certificate: Active"
+          echo "📊 Health Check: https://www.queentrack.online/health"
 
       - name: Notify deployment failure
         if: failure()
         run: |
           echo "❌ Production deployment failed!"
+          echo "Please check the logs and domain configuration."

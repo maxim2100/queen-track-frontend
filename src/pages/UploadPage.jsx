@@ -24,10 +24,10 @@ function UploadPage() {
       }
       setUploadStatus("Success");
       // eslint-disable-next-line no-console
-      console.log('Uploaded successfully!');
+      // console.log('Uploaded successfully!');
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error(err);
+      // console.error(err);
       setUploadStatus("Error");
     }
   };

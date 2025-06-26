@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import UploadPage from './pages/UploadPage';
 import TrackPage from './pages/TrackPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/track" element={<TrackPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Router>
   );
