@@ -207,7 +207,7 @@ jobs:
           rm -f /etc/nginx/sites-enabled/queentrack.online
           rm -f /etc/nginx/sites-enabled/default
           rm -f /etc/nginx/sites-available/queentrack.online
-          
+
           # Create a clean default nginx configuration to avoid SSL errors
             cat > /etc/nginx/nginx.conf << 'MAIN_NGINX_EOF'
           user www-data;
@@ -432,37 +432,37 @@ jobs:
           # Remove any existing conflicting configurations
           rm -f /etc/nginx/sites-enabled/queen-track-staging
           rm -f /etc/nginx/sites-enabled/default
-          
+
           # Create a clean default nginx configuration to avoid SSL errors
           cat > /etc/nginx/nginx.conf << 'MAIN_NGINX_EOF'
-user www-data;
-worker_processes auto;
-pid /run/nginx.pid;
-include /etc/nginx/modules-enabled/*.conf;
+          user www-data;
+          worker_processes auto;
+          pid /run/nginx.pid;
+          include /etc/nginx/modules-enabled/*.conf;
 
-events {
-    worker_connections 768;
-}
+          events {
+              worker_connections 768;
+          }
 
-http {
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
+          http {
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_timeout 65;
+              types_hash_max_size 2048;
 
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
 
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
+              access_log /var/log/nginx/access.log;
+              error_log /var/log/nginx/error.log;
 
-    gzip on;
+              gzip on;
 
-    include /etc/nginx/conf.d/*.conf;
-    include /etc/nginx/sites-enabled/*;
-}
-MAIN_NGINX_EOF
+              include /etc/nginx/conf.d/*.conf;
+              include /etc/nginx/sites-enabled/*;
+          }
+          MAIN_NGINX_EOF
 
           # Configure Nginx (initially without SSL)
           cat > /etc/nginx/sites-available/queentrack.online << 'NGINX_EOF'
