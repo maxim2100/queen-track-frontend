@@ -27,7 +27,7 @@ function UploadPage() {
       // console.log('Uploaded successfully!');
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error(err);
+      // console.error(err);
       setUploadStatus("Error");
     }
   };

@@ -25,10 +25,10 @@ function Navbar() {
     } catch (error) {
       // Silent error handling for production
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error loading notifications from database:', error);
+        // console.error('Error loading notifications from database:', error);
       }
     }
-  }, [backendUrl]);
+  }, []); // backendUrl is a constant, no need in dependency array
 
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
@@ -49,7 +49,7 @@ function Navbar() {
         } catch (error) {
           // Silent error handling for production
           if (process.env.NODE_ENV === 'development') {
-            console.error('Error parsing notification:', error);
+            // console.error('Error parsing notification:', error);
           }
         }
       };
@@ -61,7 +61,7 @@ function Navbar() {
 
       websocket.onerror = (error) => {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Notifications WebSocket error:', error);
+          // console.error('Notifications WebSocket error:', error);
         }
       };
 
@@ -75,7 +75,7 @@ function Navbar() {
         ws.close();
       }
     };
-  }, [loadNotificationsFromDB, websocketUrl, ws]);
+  }, [loadNotificationsFromDB, ws]); // websocketUrl is a constant, no need in dependency array
 
   const addNotification = (notificationData) => {
     const newNotification = {
@@ -101,12 +101,12 @@ function Navbar() {
         setUnreadCount(0);
       } else {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Failed to mark notifications as read');
+          // console.error('Failed to mark notifications as read');
         }
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error marking notifications as read:', error);
+        // console.error('Error marking notifications as read:', error);
       }
     }
   };
@@ -123,12 +123,12 @@ function Navbar() {
         setShowNotifications(false);
       } else {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Failed to delete notifications');
+          // console.error('Failed to delete notifications');
         }
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error deleting notifications:', error);
+        // console.error('Error deleting notifications:', error);
       }
     }
   };

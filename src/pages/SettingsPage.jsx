@@ -22,7 +22,7 @@ const SettingsPage = () => {
         setSettings(data.settings);
       }
     } catch (error) {
-      console.error('Failed to load settings:', error);
+      // console.error('Failed to load settings:', error);
       setMessage('Failed to load settings');
     } finally {
       setLoading(false);
@@ -37,7 +37,7 @@ const SettingsPage = () => {
         setPresets(data.presets);
       }
     } catch (error) {
-      console.error('Failed to load presets:', error);
+      // console.error('Failed to load presets:', error);
     }
   };
 
@@ -62,7 +62,7 @@ const SettingsPage = () => {
         setMessage('Failed to save settings');
       }
     } catch (error) {
-      console.error('Failed to save settings:', error);
+      // console.error('Failed to save settings:', error);
       setMessage('Failed to save settings');
     } finally {
       setSaving(false);
@@ -86,7 +86,7 @@ const SettingsPage = () => {
         setTimeout(() => setMessage(''), 3000);
       }
     } catch (error) {
-      console.error('Failed to reset settings:', error);
+      // console.error('Failed to reset settings:', error);
       setMessage('Failed to reset settings');
     }
   };
@@ -104,7 +104,7 @@ const SettingsPage = () => {
         setTimeout(() => setMessage(''), 3000);
       }
     } catch (error) {
-      console.error('Failed to apply preset:', error);
+      // console.error('Failed to apply preset:', error);
       setMessage('Failed to apply preset');
     }
   };

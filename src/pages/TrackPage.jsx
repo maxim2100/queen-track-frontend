@@ -119,7 +119,7 @@ function TrackPage() {
 
       alert('האירוע נמחק בהצלחה');
     } catch (error) {
-      console.error('Error deleting event:', error);
+      // console.error('Error deleting event:', error);
       alert('שגיאה במחיקת האירוע: ' + error.message);
     } finally {
       setDeletingEvents(prev => {

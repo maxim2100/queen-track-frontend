@@ -34,7 +34,7 @@ function HomePage() {
     // Check if mediaDevices is available (requires HTTPS or localhost)
     if (!navigator.mediaDevices) {
       // eslint-disable-next-line no-console
-      console.error("mediaDevices not available. Camera access requires HTTPS or localhost.");
+      // console.error("mediaDevices not available. Camera access requires HTTPS or localhost.");
       // Set a default message or fallback behavior
       setVideoDevices([]);
       return;
@@ -52,7 +52,7 @@ function HomePage() {
       })
       .catch((err) => {
         // eslint-disable-next-line no-console
-        console.error("Error enumerating devices:", err);
+        // console.error("Error enumerating devices:", err);
         setVideoDevices([]);
       });
   }, []);
@@ -114,11 +114,11 @@ function HomePage() {
         });
       } else {
         // eslint-disable-next-line no-console
-        console.error("Failed to save camera configuration");
+        // console.error("Failed to save camera configuration");
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error saving camera config:", error);
+      // console.error("Error saving camera config:", error);
     }
   };
 
@@ -140,7 +140,7 @@ function HomePage() {
             externalVideoRef.current.load();
             externalVideoRef.current.play().catch(err => {
               // eslint-disable-next-line no-console
-              console.error("Error playing external video:", err);
+              // console.error("Error playing external video:", err);
             });
           }
         }
@@ -149,7 +149,7 @@ function HomePage() {
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error checking external camera status:", error);
+      // console.error("Error checking external camera status:", error);
       setExternalCameraStatus("error");
     }
   };
@@ -164,7 +164,7 @@ function HomePage() {
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error fetching debug info:", error);
+      // console.error("Error fetching debug info:", error);
     }
   };
 
@@ -178,7 +178,7 @@ function HomePage() {
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error fetching model info:", error);
+      // console.error("Error fetching model info:", error);
     }
   };
 
@@ -196,7 +196,7 @@ function HomePage() {
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error resetting tracking:", error);
+      // console.error("Error resetting tracking:", error);
     }
   };
 
@@ -218,7 +218,7 @@ function HomePage() {
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error setting initial status:", error);
+      // console.error("Error setting initial status:", error);
     }
   };
 
@@ -231,7 +231,7 @@ function HomePage() {
         // Check if mediaDevices is available
         if (!navigator.mediaDevices) {
           // eslint-disable-next-line no-console
-          console.error("Camera access not available. Requires HTTPS or localhost.");
+          // console.error("Camera access not available. Requires HTTPS or localhost.");
           alert("Camera access requires HTTPS. Please use HTTPS to access the camera features.");
           return;
         }
@@ -317,7 +317,7 @@ function HomePage() {
     
         socket.onerror = (error) => {
           // eslint-disable-next-line no-console
-          console.error("WebSocket error:", error);
+          // console.error("WebSocket error:", error);
           clearInterval(intervalId);
         };
         
@@ -335,7 +335,7 @@ function HomePage() {
             await videoRef.current.play();
           } catch (error) {
             // eslint-disable-next-line no-console
-            console.error("Error playing video file:", error);
+            // console.error("Error playing video file:", error);
             return;
           }
         }
@@ -413,7 +413,7 @@ function HomePage() {
     
         socket.onerror = (error) => {
           // eslint-disable-next-line no-console
-          console.error("WebSocket error:", error);
+          // console.error("WebSocket error:", error);
           clearInterval(intervalId);
         };
       }
@@ -429,7 +429,7 @@ function HomePage() {
   
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Error starting camera/video:", error);
+      // console.error("Error starting camera/video:", error);
     }
   };
 
@@ -827,7 +827,7 @@ function HomePage() {
                   }).then(stream => {
                     externalVideoRef.current.srcObject = stream;
                   }).catch(error => {
-                    console.error('Error accessing external camera:', error);
+                    // console.error('Error accessing external camera:', error);
                   });
                 }
               }}
