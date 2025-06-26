@@ -33,7 +33,7 @@ function Navbar() {
       const websocket = new WebSocket(`${websocketUrl}/video/notifications`);
       
       websocket.onopen = () => {
-        console.log('Connected to notifications WebSocket');
+        // console.log('Connected to notifications WebSocket');
         // טעינת התרעות קיימות מהמונגו
         loadNotificationsFromDB();
       };
@@ -50,7 +50,7 @@ function Navbar() {
       };
 
       websocket.onclose = () => {
-        console.log('Notifications WebSocket disconnected');
+        // console.log('Notifications WebSocket disconnected');
         // נסה להתחבר מחדש אחרי 5 שניות
         setTimeout(connectWebSocket, 5000);
       };

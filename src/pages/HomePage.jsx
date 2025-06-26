@@ -106,7 +106,7 @@ function HomePage() {
       
       if (response.ok) {
         // eslint-disable-next-line no-console
-        console.log("Camera configuration saved successfully");
+        // console.log("Camera configuration saved successfully");
         // Update local config state to show both cameras are configured
         setCameraConfig({
           internalSelected: true,
@@ -190,7 +190,7 @@ function HomePage() {
       });
       if (response.ok) {
         // eslint-disable-next-line no-console
-        console.log("Tracking state reset successfully");
+        // console.log("Tracking state reset successfully");
         // Refresh debug info after reset
         setTimeout(fetchDebugInfo, 500);
       }
@@ -212,7 +212,7 @@ function HomePage() {
       });
       if (response.ok) {
         // eslint-disable-next-line no-console
-        console.log(`Initial status set to: ${status}`);
+        // console.log(`Initial status set to: ${status}`);
         // Refresh debug info after setting status
         setTimeout(fetchDebugInfo, 500);
       }
@@ -311,7 +311,7 @@ function HomePage() {
         
         socket.onclose = () => {
           // eslint-disable-next-line no-console
-          console.log("WebSocket disconnected");
+          // console.log("WebSocket disconnected");
           clearInterval(intervalId);
         };
     
@@ -407,7 +407,7 @@ function HomePage() {
         
         socket.onclose = () => {
           // eslint-disable-next-line no-console
-          console.log("WebSocket disconnected");
+          // console.log("WebSocket disconnected");
           clearInterval(intervalId);
         };
     
