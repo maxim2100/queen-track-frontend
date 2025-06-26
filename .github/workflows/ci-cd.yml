@@ -200,6 +200,45 @@ jobs:
           mkdir -p /etc/nginx/sites-available
           mkdir -p /etc/nginx/sites-enabled
 
+          # Stop nginx to avoid configuration conflicts
+          systemctl stop nginx || service nginx stop || true
+
+          # Remove any existing conflicting configurations
+          rm -f /etc/nginx/sites-enabled/queentrack.online
+          rm -f /etc/nginx/sites-enabled/default
+          rm -f /etc/nginx/sites-available/queentrack.online
+          
+          # Create a clean default nginx configuration to avoid SSL errors
+            cat > /etc/nginx/nginx.conf << 'MAIN_NGINX_EOF'
+          user www-data;
+          worker_processes auto;
+          pid /run/nginx.pid;
+          include /etc/nginx/modules-enabled/*.conf;
+
+          events {
+              worker_connections 768;
+          }
+
+          http {
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_timeout 65;
+              types_hash_max_size 2048;
+
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
+
+              access_log /var/log/nginx/access.log;
+              error_log /var/log/nginx/error.log;
+
+              gzip on;
+
+              include /etc/nginx/conf.d/*.conf;
+              include /etc/nginx/sites-enabled/*;
+          }
+          MAIN_NGINX_EOF
+
           # Configure Nginx
             cat > /etc/nginx/sites-available/queen-track-staging << 'NGINX_EOF'
           server {
@@ -257,7 +296,8 @@ jobs:
             exit 1
           fi
 
-          # Reload Nginx
+          # Start Nginx with new configuration
+          systemctl start nginx || service nginx start
           systemctl reload nginx || service nginx reload
           sleep 2
 
@@ -382,12 +422,50 @@ jobs:
           chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
           chmod -R 755 "$SERVER_PATH"
 
-          # Ensure Nginx directories exist
+                    # Ensure Nginx directories exist
           mkdir -p /etc/nginx/sites-available
           mkdir -p /etc/nginx/sites-enabled
 
+          # Stop nginx to avoid configuration conflicts
+          systemctl stop nginx || service nginx stop || true
+
+          # Remove any existing conflicting configurations
+          rm -f /etc/nginx/sites-enabled/queen-track-staging
+          rm -f /etc/nginx/sites-enabled/default
+          
+          # Create a clean default nginx configuration to avoid SSL errors
+          cat > /etc/nginx/nginx.conf << 'MAIN_NGINX_EOF'
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    gzip on;
+
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+MAIN_NGINX_EOF
+
           # Configure Nginx (initially without SSL)
-            cat > /etc/nginx/sites-available/queentrack.online << 'NGINX_EOF'
+          cat > /etc/nginx/sites-available/queentrack.online << 'NGINX_EOF'
           server {
               listen 80;
               server_name queentrack.online www.queentrack.online;
@@ -449,7 +527,8 @@ jobs:
             exit 1
           fi
 
-          # Reload Nginx
+          # Start Nginx with new configuration
+          systemctl start nginx || service nginx start
           systemctl reload nginx || service nginx reload
 
           # Get SSL certificate
