@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 
 const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
@@ -11,7 +11,7 @@ function Navbar() {
   const [ws, setWs] = useState(null);
 
   // פונקציה לטעינת התרעות מהמונגו
-  const loadNotificationsFromDB = async () => {
+  const loadNotificationsFromDB = useCallback(async () => {
     try {
       const response = await fetch(`${backendUrl}/video/notifications`);
       if (response.ok) {
@@ -23,9 +23,12 @@ function Navbar() {
         setUnreadCount(unreadCount);
       }
     } catch (error) {
-      console.error('Error loading notifications from database:', error);
+      // Silent error handling for production
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading notifications from database:', error);
+      }
     }
-  };
+  }, [backendUrl]);
 
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
@@ -33,7 +36,6 @@ function Navbar() {
       const websocket = new WebSocket(`${websocketUrl}/video/notifications`);
       
       websocket.onopen = () => {
-        // console.log('Connected to notifications WebSocket');
         // טעינת התרעות קיימות מהמונגו
         loadNotificationsFromDB();
       };
@@ -45,18 +47,22 @@ function Navbar() {
             addNotification(data);
           }
         } catch (error) {
-          console.error('Error parsing notification:', error);
+          // Silent error handling for production
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error parsing notification:', error);
+          }
         }
       };
 
       websocket.onclose = () => {
-        // console.log('Notifications WebSocket disconnected');
         // נסה להתחבר מחדש אחרי 5 שניות
         setTimeout(connectWebSocket, 5000);
       };
 
       websocket.onerror = (error) => {
-        console.error('Notifications WebSocket error:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Notifications WebSocket error:', error);
+        }
       };
 
       setWs(websocket);
@@ -69,7 +75,7 @@ function Navbar() {
         ws.close();
       }
     };
-  }, []);
+  }, [loadNotificationsFromDB, websocketUrl, ws]);
 
   const addNotification = (notificationData) => {
     const newNotification = {
@@ -94,10 +100,14 @@ function Navbar() {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
       } else {
-        console.error('Failed to mark notifications as read');
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to mark notifications as read');
+        }
       }
     } catch (error) {
-      console.error('Error marking notifications as read:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error marking notifications as read:', error);
+      }
     }
   };
 
@@ -112,10 +122,14 @@ function Navbar() {
         setUnreadCount(0);
         setShowNotifications(false);
       } else {
-        console.error('Failed to delete notifications');
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to delete notifications');
+        }
       }
     } catch (error) {
-      console.error('Error deleting notifications:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error deleting notifications:', error);
+      }
     }
   };
 
