@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const DebugPage = () => {
   const [websocketStatus, setWebsocketStatus] = useState({});
-  const [connectionTests, setConnectionTests] = useState([]);
   const [backendTest, setBackendTest] = useState(null);
 
   const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
   const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
   // Test backend connectivity
-  const testBackendConnection = async () => {
+  const testBackendConnection = useCallback(async () => {
     setBackendTest('testing...');
     try {
       const response = await fetch(`${backendUrl}/health`);
@@ -25,11 +24,12 @@ const DebugPage = () => {
         error: error.message
       });
     }
-  };
+  }, [backendUrl]);
 
   // Test WebSocket connections
-  const testWebSocket = (endpoint, name) => {
+  const testWebSocket = useCallback((endpoint, name) => {
     const fullUrl = `${websocketUrl}${endpoint}`;
+    // eslint-disable-next-line no-console
     console.log(`Testing WebSocket: ${name} -> ${fullUrl}`);
     
     const ws = new WebSocket(fullUrl);
@@ -48,6 +48,7 @@ const DebugPage = () => {
     };
 
     ws.onopen = () => {
+      // eslint-disable-next-line no-console
       console.log(`✅ ${name} WebSocket opened`);
       updateStatus('connected');
       
@@ -56,6 +57,7 @@ const DebugPage = () => {
     };
 
     ws.onclose = (event) => {
+      // eslint-disable-next-line no-console
       console.log(`❌ ${name} WebSocket closed:`, event);
       updateStatus('closed', {
         code: event.code,
@@ -65,23 +67,23 @@ const DebugPage = () => {
     };
 
     ws.onerror = (error) => {
+      // eslint-disable-next-line no-console
       console.error(`💥 ${name} WebSocket error:`, error);
       updateStatus('error', { error: error.type });
     };
-  };
+  }, [websocketUrl]);
 
-  const runAllTests = () => {
+  const runAllTests = useCallback(() => {
     setWebsocketStatus({});
-    setConnectionTests([]);
     
     testBackendConnection();
     testWebSocket('/video/live-stream', 'Live Stream');
     testWebSocket('/video/notifications', 'Notifications');
-  };
+  }, [websocketUrl, backendUrl, testBackendConnection, testWebSocket]);
 
   useEffect(() => {
     runAllTests();
-  }, []);
+  }, [runAllTests]);
 
   const debugStyle = {
     padding: '20px',

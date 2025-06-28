@@ -247,9 +247,13 @@ function HomePage() {
         setStream(newStream);
         
         const fullWebSocketUrl = `${websocketUrl}/video/live-stream`;
+        // eslint-disable-next-line no-console
         console.log("🔌 [LIVE WebSocket Debug] Attempting to connect to:", fullWebSocketUrl);
+        // eslint-disable-next-line no-console
         console.log("🔌 [LIVE WebSocket Debug] Base websocketUrl:", websocketUrl);
+        // eslint-disable-next-line no-console
         console.log("🔌 [LIVE WebSocket Debug] backendUrl:", backendUrl);
+        // eslint-disable-next-line no-console
         console.log("🔌 [LIVE WebSocket Debug] Environment variables:", {
           REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
           REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
@@ -320,10 +324,12 @@ function HomePage() {
         };
         
         socket.onopen = () => {
+          // eslint-disable-next-line no-console
           console.log("✅ [LIVE WebSocket] Connection opened successfully to:", fullWebSocketUrl);
         };
         
         socket.onclose = (event) => {
+          // eslint-disable-next-line no-console
           console.log("❌ [LIVE WebSocket] Connection closed:", {
             code: event.code,
             reason: event.reason,
@@ -334,6 +340,7 @@ function HomePage() {
         };
     
         socket.onerror = (error) => {
+          // eslint-disable-next-line no-console
           console.error("💥 [LIVE WebSocket] Error occurred:", {
             error: error,
             type: error.type,
@@ -367,9 +374,13 @@ function HomePage() {
         }
         
         const fullWebSocketUrl = `${websocketUrl}/video/live-stream`;
+        // eslint-disable-next-line no-console
         console.log("🔌 [VIDEO WebSocket Debug] Attempting to connect to:", fullWebSocketUrl);
+        // eslint-disable-next-line no-console
         console.log("🔌 [VIDEO WebSocket Debug] Base websocketUrl:", websocketUrl);
+        // eslint-disable-next-line no-console
         console.log("🔌 [VIDEO WebSocket Debug] backendUrl:", backendUrl);
+        // eslint-disable-next-line no-console
         console.log("🔌 [VIDEO WebSocket Debug] Environment variables:", {
           REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
           REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
@@ -442,10 +453,12 @@ function HomePage() {
         };
         
         socket.onopen = () => {
+          // eslint-disable-next-line no-console
           console.log("✅ [VIDEO WebSocket] Connection opened successfully to:", fullWebSocketUrl);
         };
         
         socket.onclose = (event) => {
+          // eslint-disable-next-line no-console
           console.log("❌ [VIDEO WebSocket] Connection closed:", {
             code: event.code,
             reason: event.reason,
@@ -456,6 +469,7 @@ function HomePage() {
         };
     
         socket.onerror = (error) => {
+          // eslint-disable-next-line no-console
           console.error("💥 [VIDEO WebSocket] Error occurred:", {
             error: error,
             type: error.type,

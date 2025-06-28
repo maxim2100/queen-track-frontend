@@ -34,9 +34,13 @@ function Navbar() {
   useEffect(() => {
     const connectWebSocket = () => {
       const fullNotificationUrl = `${websocketUrl}/video/notifications`;
+      // eslint-disable-next-line no-console
       console.log("🔔 [Notifications WebSocket Debug] Attempting to connect to:", fullNotificationUrl);
+      // eslint-disable-next-line no-console
       console.log("🔔 [Notifications WebSocket Debug] Base websocketUrl:", websocketUrl);
+      // eslint-disable-next-line no-console
       console.log("🔔 [Notifications WebSocket Debug] backendUrl:", backendUrl);
+      // eslint-disable-next-line no-console
       console.log("🔔 [Notifications WebSocket Debug] Environment variables:", {
         REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
         REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
@@ -46,12 +50,14 @@ function Navbar() {
       const websocket = new WebSocket(fullNotificationUrl);
       
       websocket.onopen = () => {
+        // eslint-disable-next-line no-console
         console.log("✅ [Notifications WebSocket] Connection opened successfully to:", fullNotificationUrl);
         // טעינת התרעות קיימות מהמונגו
         loadNotificationsFromDB();
       };
 
       websocket.onmessage = (event) => {
+        // eslint-disable-next-line no-console
         console.log("📨 [Notifications WebSocket] Message received:", event.data);
         try {
           const data = JSON.parse(event.data);
@@ -59,11 +65,13 @@ function Navbar() {
             addNotification(data);
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error("🔔 [Notifications WebSocket] Error parsing message:", error, "Raw data:", event.data);
         }
       };
 
       websocket.onclose = (event) => {
+        // eslint-disable-next-line no-console
         console.log("❌ [Notifications WebSocket] Connection closed:", {
           code: event.code,
           reason: event.reason,
@@ -75,6 +83,7 @@ function Navbar() {
       };
 
       websocket.onerror = (error) => {
+        // eslint-disable-next-line no-console
         console.error("💥 [Notifications WebSocket] Error occurred:", {
           error: error,
           type: error.type,
