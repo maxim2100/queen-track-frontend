@@ -269,8 +269,8 @@ jobs:
                   proxy_set_header X-Forwarded-Proto \$scheme;
               }
 
-              # WebSocket proxy
-              location /ws {
+              # WebSocket proxy for /video/* endpoints
+              location ~ ^/(video/notifications|video/live-stream)$ {
                   proxy_pass http://162.55.53.52:8000;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade \$http_upgrade;
@@ -515,8 +515,8 @@ jobs:
                   proxy_set_header X-Forwarded-Proto \$scheme;
               }
 
-              # WebSocket proxy
-              location /ws {
+              # WebSocket proxy for /video/* endpoints
+              location ~ ^/(video/notifications|video/live-stream)$ {
                   proxy_pass http://162.55.53.52:8000;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade \$http_upgrade;
