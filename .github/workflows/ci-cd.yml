@@ -404,7 +404,7 @@ jobs:
 
           # Install required packages
           apt update
-          apt install -y nginx certbot python3-certbot-nginx ufw
+          apt install -y nginx certbot python3-certbot-nginx ufw dnsutils curl
 
           # Start and enable Nginx
           systemctl start nginx || service nginx start
@@ -422,9 +422,11 @@ jobs:
           chown -R www-data:www-data "$SERVER_PATH" 2>/dev/null || chown -R root:root "$SERVER_PATH"
           chmod -R 755 "$SERVER_PATH"
 
-                    # Ensure Nginx directories exist
+          # Ensure Nginx directories exist
           mkdir -p /etc/nginx/sites-available
           mkdir -p /etc/nginx/sites-enabled
+          mkdir -p /var/www/html/.well-known/acme-challenge
+          chown -R www-data:www-data /var/www/html/.well-known 2>/dev/null || chown -R root:root /var/www/html/.well-known
 
           # Stop nginx to avoid configuration conflicts
           systemctl stop nginx || service nginx stop || true
@@ -471,6 +473,12 @@ jobs:
               server_name queentrack.online www.queentrack.online;
               root $SERVER_PATH;
               index index.html;
+
+              # ACME challenge for Let's Encrypt
+              location /.well-known/acme-challenge/ {
+                  root /var/www/html;
+                  try_files \$uri =404;
+              }
 
               # Health check endpoint
               location /health {
@@ -531,12 +539,35 @@ jobs:
           systemctl start nginx || service nginx start
           systemctl reload nginx || service nginx reload
 
-          # Get SSL certificate
-          echo "🔒 Obtaining SSL certificate..."
-          certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect || {
-            echo "⚠️ SSL certificate installation failed - continuing with HTTP for now"
-            echo "You can manually run: certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect"
-          }
+          # Verify domain points to this server before getting SSL
+          echo "🔍 Verifying domain DNS configuration..."
+          DOMAIN_IP=$(dig +short queentrack.online @8.8.8.8 | tail -n1)
+          SERVER_IP="162.55.53.52"
+
+          if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+            echo "❌ Domain queentrack.online does not point to server IP $SERVER_IP (points to: $DOMAIN_IP)"
+            echo "Please update your DNS records to point queentrack.online and www.queentrack.online to $SERVER_IP"
+            echo "Continuing with HTTP for now..."
+          else
+            echo "✅ Domain DNS is correctly configured"
+            
+            # Test HTTP accessibility before getting SSL
+            echo "🔍 Testing HTTP accessibility..."
+            if curl -f --connect-timeout 10 --max-time 30 http://queentrack.online/health > /dev/null 2>&1; then
+              echo "✅ HTTP site is accessible"
+              
+              # Get SSL certificate
+              echo "🔒 Obtaining SSL certificate..."
+              certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect || {
+                echo "⚠️ SSL certificate installation failed - continuing with HTTP for now"
+                echo "You can manually run: certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect"
+                echo "Make sure the domain is accessible via HTTP first"
+              }
+            else
+              echo "❌ HTTP site is not accessible - skipping SSL certificate generation"
+              echo "Please ensure the site is accessible via HTTP before requesting SSL"
+            fi
+          fi
 
           # Verify SSL certificate renewal
           certbot renew --dry-run || echo "Certificate renewal test failed"
@@ -558,13 +589,13 @@ jobs:
 
           # Test if SSL certificate exists, if yes use HTTPS, otherwise use HTTP
           SSL_EXISTS=false
-          if sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" "[ -f /etc/letsencrypt/live/www.queentrack.online/fullchain.pem ]"; then
+          if sshpass -p "${{ secrets.SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no "root@162.55.53.52" "[ -f /etc/letsencrypt/live/queentrack.online/fullchain.pem ]"; then
             SSL_EXISTS=true
             echo "🔒 SSL certificate found, testing HTTPS endpoint..."
-            BASE_URL="https://www.queentrack.online"
+            BASE_URL="https://queentrack.online"
           else
             echo "📝 No SSL certificate found yet, testing HTTP endpoint..."
-            BASE_URL="http://www.queentrack.online"
+            BASE_URL="http://queentrack.online"
           fi
 
           # Test health endpoint
@@ -612,9 +643,9 @@ jobs:
         if: success()
         run: |
           echo "✅ Production deployment successful!"
-          echo "🌐 Application URL: https://www.queentrack.online (will redirect to HTTPS if SSL is configured)"
+          echo "🌐 Application URL: https://queentrack.online (will redirect to HTTPS if SSL is configured)"
           echo "🔒 SSL Certificate: See deployment logs for status"
-          echo "📊 Health Check: https://www.queentrack.online/health (or HTTP if SSL not ready)"
+          echo "📊 Health Check: https://queentrack.online/health (or HTTP if SSL not ready)"
 
       - name: Notify deployment failure
         if: failure()
