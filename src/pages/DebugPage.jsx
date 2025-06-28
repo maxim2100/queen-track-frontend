@@ -24,7 +24,7 @@ const DebugPage = () => {
         error: error.message
       });
     }
-  }, [backendUrl]);
+  }, []);
 
   // Test WebSocket connections
   const testWebSocket = useCallback((endpoint, name) => {
@@ -71,7 +71,7 @@ const DebugPage = () => {
       console.error(`💥 ${name} WebSocket error:`, error);
       updateStatus('error', { error: error.type });
     };
-  }, [websocketUrl]);
+  }, []);
 
   const runAllTests = useCallback(() => {
     setWebsocketStatus({});
@@ -79,7 +79,7 @@ const DebugPage = () => {
     testBackendConnection();
     testWebSocket('/video/live-stream', 'Live Stream');
     testWebSocket('/video/notifications', 'Notifications');
-  }, [websocketUrl, backendUrl, testBackendConnection, testWebSocket]);
+  }, [testBackendConnection, testWebSocket]);
 
   useEffect(() => {
     runAllTests();
