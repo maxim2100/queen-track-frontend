@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage';
 import UploadPage from './pages/UploadPage';
 import TrackPage from './pages/TrackPage';
 import SettingsPage from './pages/SettingsPage';
+import DebugPage from './pages/DebugPage';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/track" element={<TrackPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/debug" element={<DebugPage />} />
       </Routes>
     </Router>
   );

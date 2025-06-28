@@ -246,7 +246,17 @@ function HomePage() {
     
         setStream(newStream);
         
-        const socket = new WebSocket(`${websocketUrl}/video/live-stream`);
+        const fullWebSocketUrl = `${websocketUrl}/video/live-stream`;
+        console.log("🔌 [LIVE WebSocket Debug] Attempting to connect to:", fullWebSocketUrl);
+        console.log("🔌 [LIVE WebSocket Debug] Base websocketUrl:", websocketUrl);
+        console.log("🔌 [LIVE WebSocket Debug] backendUrl:", backendUrl);
+        console.log("🔌 [LIVE WebSocket Debug] Environment variables:", {
+          REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
+          REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
+          NODE_ENV: process.env.NODE_ENV
+        });
+        
+        const socket = new WebSocket(fullWebSocketUrl);
         socketRef.current = socket;
     
         const canvas = document.createElement("canvas");
@@ -309,15 +319,31 @@ function HomePage() {
           }
         };
         
-        socket.onclose = () => {
-          // eslint-disable-next-line no-console
-          // console.log("WebSocket disconnected");
+        socket.onopen = () => {
+          console.log("✅ [LIVE WebSocket] Connection opened successfully to:", fullWebSocketUrl);
+        };
+        
+        socket.onclose = (event) => {
+          console.log("❌ [LIVE WebSocket] Connection closed:", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            url: fullWebSocketUrl
+          });
           clearInterval(intervalId);
         };
     
         socket.onerror = (error) => {
-          // eslint-disable-next-line no-console
-          // console.error("WebSocket error:", error);
+          console.error("💥 [LIVE WebSocket] Error occurred:", {
+            error: error,
+            type: error.type,
+            target: error.target,
+            url: fullWebSocketUrl,
+            readyState: socket.readyState,
+            readyStateText: socket.readyState === 0 ? "CONNECTING" : 
+                          socket.readyState === 1 ? "OPEN" : 
+                          socket.readyState === 2 ? "CLOSING" : "CLOSED"
+          });
           clearInterval(intervalId);
         };
         
@@ -340,7 +366,17 @@ function HomePage() {
           }
         }
         
-        const socket = new WebSocket(`${websocketUrl}/video/live-stream`);
+        const fullWebSocketUrl = `${websocketUrl}/video/live-stream`;
+        console.log("🔌 [VIDEO WebSocket Debug] Attempting to connect to:", fullWebSocketUrl);
+        console.log("🔌 [VIDEO WebSocket Debug] Base websocketUrl:", websocketUrl);
+        console.log("🔌 [VIDEO WebSocket Debug] backendUrl:", backendUrl);
+        console.log("🔌 [VIDEO WebSocket Debug] Environment variables:", {
+          REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
+          REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
+          NODE_ENV: process.env.NODE_ENV
+        });
+        
+        const socket = new WebSocket(fullWebSocketUrl);
         socketRef.current = socket;
     
         const canvas = document.createElement("canvas");
@@ -405,15 +441,31 @@ function HomePage() {
           }
         };
         
-        socket.onclose = () => {
-          // eslint-disable-next-line no-console
-          // console.log("WebSocket disconnected");
+        socket.onopen = () => {
+          console.log("✅ [VIDEO WebSocket] Connection opened successfully to:", fullWebSocketUrl);
+        };
+        
+        socket.onclose = (event) => {
+          console.log("❌ [VIDEO WebSocket] Connection closed:", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            url: fullWebSocketUrl
+          });
           clearInterval(intervalId);
         };
     
         socket.onerror = (error) => {
-          // eslint-disable-next-line no-console
-          // console.error("WebSocket error:", error);
+          console.error("💥 [VIDEO WebSocket] Error occurred:", {
+            error: error,
+            type: error.type,
+            target: error.target,
+            url: fullWebSocketUrl,
+            readyState: socket.readyState,
+            readyStateText: socket.readyState === 0 ? "CONNECTING" : 
+                          socket.readyState === 1 ? "OPEN" : 
+                          socket.readyState === 2 ? "CLOSING" : "CLOSED"
+          });
           clearInterval(intervalId);
         };
       }

@@ -33,36 +33,58 @@ function Navbar() {
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
     const connectWebSocket = () => {
-      const websocket = new WebSocket(`${websocketUrl}/video/notifications`);
+      const fullNotificationUrl = `${websocketUrl}/video/notifications`;
+      console.log("🔔 [Notifications WebSocket Debug] Attempting to connect to:", fullNotificationUrl);
+      console.log("🔔 [Notifications WebSocket Debug] Base websocketUrl:", websocketUrl);
+      console.log("🔔 [Notifications WebSocket Debug] backendUrl:", backendUrl);
+      console.log("🔔 [Notifications WebSocket Debug] Environment variables:", {
+        REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
+        REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
+        NODE_ENV: process.env.NODE_ENV
+      });
+      
+      const websocket = new WebSocket(fullNotificationUrl);
       
       websocket.onopen = () => {
+        console.log("✅ [Notifications WebSocket] Connection opened successfully to:", fullNotificationUrl);
         // טעינת התרעות קיימות מהמונגו
         loadNotificationsFromDB();
       };
 
       websocket.onmessage = (event) => {
+        console.log("📨 [Notifications WebSocket] Message received:", event.data);
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'bee_notification') {
             addNotification(data);
           }
         } catch (error) {
-          // Silent error handling for production
-          if (process.env.NODE_ENV === 'development') {
-            // console.error('Error parsing notification:', error);
-          }
+          console.error("🔔 [Notifications WebSocket] Error parsing message:", error, "Raw data:", event.data);
         }
       };
 
-      websocket.onclose = () => {
+      websocket.onclose = (event) => {
+        console.log("❌ [Notifications WebSocket] Connection closed:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          url: fullNotificationUrl
+        });
         // נסה להתחבר מחדש אחרי 5 שניות
         setTimeout(connectWebSocket, 5000);
       };
 
       websocket.onerror = (error) => {
-        if (process.env.NODE_ENV === 'development') {
-          // console.error('Notifications WebSocket error:', error);
-        }
+        console.error("💥 [Notifications WebSocket] Error occurred:", {
+          error: error,
+          type: error.type,
+          target: error.target,
+          url: fullNotificationUrl,
+          readyState: websocket.readyState,
+          readyStateText: websocket.readyState === 0 ? "CONNECTING" : 
+                        websocket.readyState === 1 ? "OPEN" : 
+                        websocket.readyState === 2 ? "CLOSING" : "CLOSED"
+        });
       };
 
       setWs(websocket);
@@ -286,6 +308,11 @@ function Navbar() {
           <li>
             <Link to="/settings" style={linkStyle}>
               ⚙️ הגדרות
+            </Link>
+          </li>
+          <li>
+            <Link to="/debug" style={linkStyle}>
+              🔧 דיבוג
             </Link>
           </li>
         </ul>
