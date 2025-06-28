@@ -268,7 +268,7 @@ jobs:
 
               # API and Video Routes proxy (including WebSockets)
               location ~ ^/(api|video)/ {
-                  proxy_pass http://162.55.53.52:8000;
+                  proxy_pass http://127.0.0.1:8000;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade \$http_upgrade;
                   proxy_set_header Connection \$connection_upgrade;
@@ -278,7 +278,7 @@ jobs:
                   proxy_set_header X-Forwarded-Proto \$scheme;
                   proxy_read_timeout 86400;
                   proxy_send_timeout 86400;
-                  proxy_connect_timeout 60s;
+                  proxy_connect_timeout 5s;
               }
 
               # React Router - catch all other requests
@@ -513,7 +513,7 @@ jobs:
 
               # API and Video Routes proxy (including WebSockets)
               location ~ ^/(api|video)/ {
-                  proxy_pass http://162.55.53.52:8000;
+                  proxy_pass http://127.0.0.1:8000;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade \$http_upgrade;
                   proxy_set_header Connection \$connection_upgrade;
@@ -523,7 +523,7 @@ jobs:
                   proxy_set_header X-Forwarded-Proto \$scheme;
                   proxy_read_timeout 86400;
                   proxy_send_timeout 86400;
-                  proxy_connect_timeout 60s;
+                  proxy_connect_timeout 5s;
               }
 
               # React Router - catch all other requests
