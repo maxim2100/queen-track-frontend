@@ -32,6 +32,9 @@ function Navbar() {
 
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
+    let websocket = null;
+    let reconnectTimeout = null;
+
     const connectWebSocket = () => {
       const fullNotificationUrl = `${websocketUrl}/video/notifications`;
       // eslint-disable-next-line no-console
@@ -47,7 +50,7 @@ function Navbar() {
         NODE_ENV: process.env.NODE_ENV
       });
       
-      const websocket = new WebSocket(fullNotificationUrl);
+      websocket = new WebSocket(fullNotificationUrl);
       
       websocket.onopen = () => {
         // eslint-disable-next-line no-console
@@ -78,8 +81,13 @@ function Navbar() {
           wasClean: event.wasClean,
           url: fullNotificationUrl
         });
-        // נסה להתחבר מחדש אחרי 5 שניות
-        setTimeout(connectWebSocket, 5000);
+        
+        // Only attempt to reconnect if the connection was not closed cleanly (e.g., due to network issues)
+        if (!event.wasClean && event.code !== 1000) {
+          // eslint-disable-next-line no-console
+          console.log("🔄 [Notifications WebSocket] Attempting to reconnect in 5 seconds...");
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        }
       };
 
       websocket.onerror = (error) => {
@@ -102,11 +110,17 @@ function Navbar() {
     connectWebSocket();
 
     return () => {
-      if (ws) {
-        ws.close();
+      // Clear any pending reconnection timeout
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      
+      // Close the WebSocket connection cleanly
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.close(1000, 'Component unmounting');
       }
     };
-  }, [loadNotificationsFromDB, ws]); // websocketUrl is a constant, no need in dependency array
+  }, [loadNotificationsFromDB]); // Removed 'ws' from dependency array to prevent reconnection loop
 
   const addNotification = (notificationData) => {
     const newNotification = {
@@ -302,7 +316,7 @@ function Navbar() {
       </Link>
 
       {/* תפריט ניווט בימין */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem',direction: 'rtl' }}>
         <ul style={navLinksStyle}>
           <li>
             <Link to="/" style={linkStyle}>
