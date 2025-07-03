@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
 const backendUrl = process.env.REACT_APP_BACKEND_URL;
@@ -32,10 +32,21 @@ function HomePage() {
   const notificationSocketRef = useRef(null);
   const statusCheckIntervalRef = useRef(null);
   const videoFileRef = useRef(null);
+  const handleExternalCameraActivationRef = useRef(null);
+  const stopExternalCameraRef = useRef(null);
+  const userIsSelectingCameraRef = useRef(false);
+  const configLoadTimeoutRef = useRef(null);
 
   // Function to load camera configuration from backend
-  const loadCameraConfig = async () => {
+  const loadCameraConfig = useCallback(async (skipIfUserSelecting = true) => {
     try {
+      // Skip loading if user is currently selecting a camera
+      if (skipIfUserSelecting && userIsSelectingCameraRef.current) {
+        // eslint-disable-next-line no-console
+        console.log("⏭️ [Camera Config] Skipping auto-load - user is selecting camera");
+        return;
+      }
+
       const response = await fetch(`${backendUrl}/video/external-camera-status`);
       if (response.ok) {
         const data = await response.json();
@@ -56,10 +67,10 @@ function HomePage() {
       // eslint-disable-next-line no-console
       console.error("💥 [Camera Config] Error loading camera config:", error);
     }
-  };
+  }, [videoDevices]);
 
   // Function to enumerate camera devices with permission handling
-  const enumerateCameraDevices = async (requestPermissions = false) => {
+  const enumerateCameraDevices = useCallback(async (requestPermissions = false) => {
     try {
       // eslint-disable-next-line no-console
       console.log("📷 [Camera Enumeration] Starting device enumeration...");
@@ -106,7 +117,14 @@ function HomePage() {
         }
         
         // Try to load saved configuration after devices are detected
-        setTimeout(loadCameraConfig, 1000);
+        // Clear any existing timeout
+        if (configLoadTimeoutRef.current) {
+          clearTimeout(configLoadTimeoutRef.current);
+        }
+        
+        configLoadTimeoutRef.current = setTimeout(() => {
+          loadCameraConfig(true); // Skip if user is selecting
+        }, 1000);
         return true;
       } else {
         // eslint-disable-next-line no-console
@@ -119,18 +137,272 @@ function HomePage() {
       setVideoDevices([]);
       return false;
     }
-  };
+  }, [selectedInternalDeviceId, selectedExternalDeviceId, loadCameraConfig]);
+
+  // Function to stop external camera
+  const stopExternalCamera = useCallback(() => {
+    try {
+      // eslint-disable-next-line no-console
+      console.log("🛑 [External Camera] Stopping external camera");
+      
+      // Stop external camera stream
+      if (externalCameraStream) {
+        externalCameraStream.getTracks().forEach((track) => track.stop());
+        setExternalCameraStream(null);
+      }
+      
+      // Clear external video source
+      if (externalVideoRef.current) {
+        externalVideoRef.current.srcObject = null;
+      }
+      
+      // Close external WebSocket safely
+      if (externalSocketRef.current && externalSocketRef.current.readyState !== WebSocket.CLOSED) {
+        try {
+          externalSocketRef.current.close();
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn("🔇 [External Camera] WebSocket already closed:", error.message);
+        }
+        externalSocketRef.current = null;
+      }
+      
+      setExternalCameraActive(false);
+      setExternalCameraStatus("inactive");
+      
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("🛑 [External Camera] Error stopping external camera:", error);
+    }
+  }, [externalCameraStream]);
+
+  // Function to start external camera with specific device
+  const startExternalCameraWithDevice = useCallback(async (deviceId, availableCameras) => {
+    try {
+      // eslint-disable-next-line no-console
+      console.log("🎥 [External Camera] Starting with device:", deviceId);
+      
+      if (externalCameraActive) {
+        // eslint-disable-next-line no-console
+        console.log("🎥 [External Camera] Already active");
+        return;
+      }
+      
+      if (!deviceId) {
+        // eslint-disable-next-line no-console
+        console.error("🎥 [External Camera] No device ID provided");
+        setExternalCameraStatus("error");
+        return;
+      }
+      
+      // Check if mediaDevices is available
+      if (!navigator.mediaDevices) {
+        // eslint-disable-next-line no-console
+        console.error("🎥 [External Camera] Media devices not available");
+        setExternalCameraStatus("error");
+        return;
+      }
+      
+      // Check if trying to use the same device as internal camera
+      if (deviceId === selectedInternalDeviceId && stream) {
+        // eslint-disable-next-line no-console
+        console.warn("🎥 [External Camera] Cannot use same device as internal camera, trying different device");
+        
+        // Try to find a different camera
+        const otherCameras = availableCameras.filter(cam => cam.deviceId !== selectedInternalDeviceId);
+        if (otherCameras.length > 0) {
+          const altDeviceId = otherCameras[0].deviceId;
+          // eslint-disable-next-line no-console
+          console.log("🎥 [External Camera] Switching to alternative device:", altDeviceId);
+          setSelectedExternalDeviceId(altDeviceId);
+          return startExternalCameraWithDevice(altDeviceId, availableCameras);
+        } else {
+          // eslint-disable-next-line no-console
+          console.error("🎥 [External Camera] No alternative camera available");
+          setExternalCameraStatus("error");
+          return;
+        }
+      }
+      
+      // eslint-disable-next-line no-console
+      console.log("🎥 [External Camera] Starting external camera stream with device:", deviceId);
+      // eslint-disable-next-line no-console
+      console.log("🎥 [External Camera] Available cameras:", availableCameras?.length || 0);
+      // eslint-disable-next-line no-console
+      console.log("🎥 [External Camera] Internal camera device:", selectedInternalDeviceId);
+      // eslint-disable-next-line no-console
+      console.log("🎥 [External Camera] Internal camera active:", !!stream);
+      
+      const newExternalStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } }
+      });
+      
+      if (externalVideoRef.current) {
+        externalVideoRef.current.srcObject = newExternalStream;
+      }
+      
+      setExternalCameraStream(newExternalStream);
+      setExternalCameraActive(true);
+      setExternalCameraStatus("active");
+      
+      // Connect to external camera WebSocket
+      const fullExternalWebSocketUrl = `${websocketUrl}/video/external-camera-stream`;
+      // eslint-disable-next-line no-console
+      console.log("🔌 [External Camera WebSocket] Connecting to:", fullExternalWebSocketUrl);
+      
+      // Close any existing external WebSocket first
+      if (externalSocketRef.current && externalSocketRef.current.readyState !== WebSocket.CLOSED) {
+        // eslint-disable-next-line no-console
+        console.log("🔄 [External Camera WebSocket] Closing existing connection");
+        try {
+          externalSocketRef.current.close();
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn("🔇 [External Camera WebSocket] Error closing existing connection:", error.message);
+        }
+      }
+      
+      const externalSocket = new WebSocket(fullExternalWebSocketUrl);
+      externalSocketRef.current = externalSocket;
+      
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      
+      const sendExternalFrame = () => {
+        if (
+          externalVideoRef.current &&
+          externalSocket.readyState === WebSocket.OPEN &&
+          externalCameraActive
+        ) {
+          canvas.width = externalVideoRef.current.videoWidth;
+          canvas.height = externalVideoRef.current.videoHeight;
+          context.drawImage(externalVideoRef.current, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (blob) externalSocket.send(blob);
+          }, "image/jpeg");
+        }
+      };
+      
+      const externalIntervalId = setInterval(sendExternalFrame, 100);
+      
+      externalSocket.onopen = () => {
+        // eslint-disable-next-line no-console
+        console.log("✅ [External Camera WebSocket] Connected successfully");
+      };
+      
+      externalSocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          // eslint-disable-next-line no-console
+          console.log("📡 [External Camera WebSocket] Status:", data);
+        } catch (error) {
+          // Non-JSON message, ignore
+        }
+      };
+      
+      externalSocket.onclose = () => {
+        // eslint-disable-next-line no-console
+        console.log("❌ [External Camera WebSocket] Connection closed");
+        clearInterval(externalIntervalId);
+      };
+      
+      externalSocket.onerror = (error) => {
+        // eslint-disable-next-line no-console
+        console.error("💥 [External Camera WebSocket] Error:", error);
+        clearInterval(externalIntervalId);
+      };
+      
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("🎥 [External Camera] Error starting external camera:", error);
+      
+      // Provide detailed error information
+      let errorMessage = "שגיאה לא ידועה";
+      let possibleSolutions = [];
+      
+      if (error.name === 'NotReadableError') {
+        errorMessage = "לא ניתן לגשת למצלמה";
+        possibleSolutions = [
+          "המצלמה כבר בשימוש על ידי אפליקציה אחרת",
+          "נסה לסגור אפליקציות אחרות שמשתמשות במצלמה",
+          "המצלמה החיצונית זהה למצלמה הפנימית",
+          "נסה לבחור מצלמה אחרת"
+        ];
+      } else if (error.name === 'NotAllowedError') {
+        errorMessage = "הרשאת גישה למצלמה נדחתה";
+        possibleSolutions = [
+          "לחץ על אייקון המצלמה בסרגל הכתובות",
+          "אפשר גישה למצלמה בהגדרות הדפדפן",
+          "רענן את הדף ונסה שוב"
+        ];
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = "המצלמה לא נמצאה";
+        possibleSolutions = [
+          "המצלמה נותקה מהמחשב",
+          "בדוק שהמצלמה מחוברת",
+          "נסה מצלמה אחרת מהרשימה"
+        ];
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = "המצלמה לא תומכת בהגדרות הנדרשות";
+        possibleSolutions = [
+          "נסה מצלמה אחרת מהרשימה",
+          "הגדרות המצלמה לא מתאימות"
+        ];
+      }
+      
+      // eslint-disable-next-line no-console
+      console.error("🎥 [External Camera] Error details:", {
+        name: error.name,
+        message: error.message,
+        deviceId: deviceId,
+        availableCameras: availableCameras?.length || 0,
+        internalCameraActive: !!stream,
+        internalCameraDevice: selectedInternalDeviceId,
+        sameDevice: deviceId === selectedInternalDeviceId,
+        errorMessage,
+        possibleSolutions
+      });
+      
+      setExternalCameraStatus("error");
+      
+      // Try automatic recovery if it's a device conflict
+      if (error.name === 'NotReadableError' && availableCameras && availableCameras.length > 1) {
+        // eslint-disable-next-line no-console
+        console.log("🔄 [External Camera] Attempting automatic recovery with different device...");
+        
+        // Try next available camera
+        const otherCameras = availableCameras.filter(cam => 
+          cam.deviceId !== deviceId && cam.deviceId !== selectedInternalDeviceId
+        );
+        
+        if (otherCameras.length > 0) {
+          const nextDevice = otherCameras[0];
+          // eslint-disable-next-line no-console
+          console.log("🔄 [External Camera] Trying recovery with device:", nextDevice.deviceId);
+          setSelectedExternalDeviceId(nextDevice.deviceId);
+          
+          // Wait a bit before retrying
+          setTimeout(() => {
+            startExternalCameraWithDevice(nextDevice.deviceId, availableCameras);
+          }, 1000);
+        }
+      }
+    }
+  }, [externalCameraActive, selectedInternalDeviceId, stream]);
 
   // איסוף רשימת מצלמות
   useEffect(() => {
     enumerateCameraDevices(false);
-  }, []);
+  }, [enumerateCameraDevices]);
 
   // Clean up when component unmounts
   useEffect(() => {
     const cleanup = () => {
       if (statusCheckIntervalRef.current) {
         clearInterval(statusCheckIntervalRef.current);
+      }
+      if (configLoadTimeoutRef.current) {
+        clearTimeout(configLoadTimeoutRef.current);
       }
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
@@ -169,7 +441,7 @@ function HomePage() {
   }, [stream, externalCameraStream]);
 
   // Helper function to handle external camera activation with fresh state
-  const handleExternalCameraActivation = async () => {
+  const handleExternalCameraActivation = useCallback(async () => {
     try {
       // eslint-disable-next-line no-console
       console.log("🎥 [External Camera] Activation signal received");
@@ -237,78 +509,151 @@ function HomePage() {
       console.error("💥 [External Camera] Activation error:", error);
       setExternalCameraStatus("error");
     }
-  };
+  }, [enumerateCameraDevices, startExternalCameraWithDevice]);
+
+  // Update refs when functions change
+  useEffect(() => {
+    handleExternalCameraActivationRef.current = handleExternalCameraActivation;
+    stopExternalCameraRef.current = stopExternalCamera;
+  }, [handleExternalCameraActivation, stopExternalCamera]);
 
   // Initialize notification WebSocket connection
   useEffect(() => {
+    let reconnectTimeout = null;
+    
     const connectNotificationWebSocket = () => {
       const fullNotificationUrl = `${websocketUrl}/video/notifications`;
       // eslint-disable-next-line no-console
-      console.log("🔔 [Notification WebSocket] Connecting to:", fullNotificationUrl);
+      console.log("🔔 [HomePage Notification WebSocket] Connecting to:", fullNotificationUrl);
       
       const notificationSocket = new WebSocket(fullNotificationUrl);
       notificationSocketRef.current = notificationSocket;
       
       notificationSocket.onopen = () => {
         // eslint-disable-next-line no-console
-        console.log("✅ [Notification WebSocket] Connected successfully");
+        console.log("✅ [HomePage Notification WebSocket] Connected successfully");
       };
       
       notificationSocket.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
           // eslint-disable-next-line no-console
-          console.log("📢 [Notification WebSocket] Received:", data);
+          console.log("📢 [HomePage Notification WebSocket] Received:", data);
           
           if (data.type === "external_camera_control") {
             if (data.action === "activate") {
-              handleExternalCameraActivation();
+              if (handleExternalCameraActivationRef.current) {
+                handleExternalCameraActivationRef.current();
+              }
             } else if (data.action === "deactivate") {
               // eslint-disable-next-line no-console
               console.log("🛑 [External Camera] Deactivation signal received");
-              stopExternalCamera();
+              if (stopExternalCameraRef.current) {
+                stopExternalCameraRef.current();
+              }
             }
           }
         } catch (error) {
           // eslint-disable-next-line no-console
-          console.log("📢 [Notification WebSocket] Non-JSON message:", event.data);
+          console.log("📢 [HomePage Notification WebSocket] Non-JSON message:", event.data);
         }
       };
       
-      notificationSocket.onclose = () => {
+      notificationSocket.onclose = (event) => {
         // eslint-disable-next-line no-console
-        console.log("❌ [Notification WebSocket] Connection closed");
-        // Attempt to reconnect after 5 seconds
-        setTimeout(connectNotificationWebSocket, 5000);
+        console.log("❌ [HomePage Notification WebSocket] Connection closed:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          url: fullNotificationUrl
+        });
+        
+        // Only attempt to reconnect if the connection was not closed cleanly (e.g., due to network issues)
+        if (!event.wasClean && event.code !== 1000) {
+          // eslint-disable-next-line no-console
+          console.log("🔄 [HomePage Notification WebSocket] Attempting to reconnect in 5 seconds...");
+          reconnectTimeout = setTimeout(connectNotificationWebSocket, 5000);
+        }
       };
       
       notificationSocket.onerror = (error) => {
         // eslint-disable-next-line no-console
-        console.error("💥 [Notification WebSocket] Error:", error);
+        console.error("💥 [HomePage Notification WebSocket] Error occurred:", {
+          error: error,
+          type: error.type,
+          target: error.target,
+          url: fullNotificationUrl,
+          readyState: notificationSocket.readyState,
+          readyStateText: notificationSocket.readyState === 0 ? "CONNECTING" : 
+                        notificationSocket.readyState === 1 ? "OPEN" : 
+                        notificationSocket.readyState === 2 ? "CLOSING" : "CLOSED"
+        });
       };
     };
     
     connectNotificationWebSocket();
     
     return () => {
-      if (notificationSocketRef.current) {
-        notificationSocketRef.current.close();
+      // Clear any pending reconnection timeout
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      
+      // Close the WebSocket connection cleanly
+      if (notificationSocketRef.current && notificationSocketRef.current.readyState === WebSocket.OPEN) {
+        notificationSocketRef.current.close(1000, 'Component unmounting');
       }
     };
-  }, []);
+  }, []); // Empty dependency array to prevent constant reconnections
 
   const handleChangeInternalDevice = (event) => {
+    // eslint-disable-next-line no-console
+    console.log("🎥 [User Selection] Internal camera changed to:", event.target.value);
+    
+    // Set flag to prevent automatic config loading
+    userIsSelectingCameraRef.current = true;
+    
+    // Clear any pending config load timeout
+    if (configLoadTimeoutRef.current) {
+      clearTimeout(configLoadTimeoutRef.current);
+    }
+    
     setSelectedInternalDeviceId(event.target.value);
+    
     // Auto-save configuration when device changes
     setTimeout(saveCameraConfig, 500);
+    
+    // Clear the flag after a delay to allow auto-loading later
+    setTimeout(() => {
+      userIsSelectingCameraRef.current = false;
+      // eslint-disable-next-line no-console
+      console.log("🎥 [User Selection] Internal camera selection completed");
+    }, 2000);
   };
 
   const handleChangeExternalDevice = (event) => {
-    setSelectedExternalDeviceId(event.target.value);
     // eslint-disable-next-line no-console
-    console.log("🎥 [Camera Config] External device changed to:", event.target.value);
+    console.log("🎥 [User Selection] External camera changed to:", event.target.value);
+    
+    // Set flag to prevent automatic config loading
+    userIsSelectingCameraRef.current = true;
+    
+    // Clear any pending config load timeout
+    if (configLoadTimeoutRef.current) {
+      clearTimeout(configLoadTimeoutRef.current);
+    }
+    
+    setSelectedExternalDeviceId(event.target.value);
+    
     // Auto-save configuration when device changes
     setTimeout(saveCameraConfig, 500);
+    
+    // Clear the flag after a delay to allow auto-loading later
+    setTimeout(() => {
+      userIsSelectingCameraRef.current = false;
+      // eslint-disable-next-line no-console
+      console.log("🎥 [User Selection] External camera selection completed");
+    }, 2000);
   };
 
   const handleStreamModeChange = (event) => {
@@ -734,306 +1079,7 @@ function HomePage() {
     }
   };
 
-  const startExternalCameraWithDevice = async (deviceId, availableCameras) => {
-    try {
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera] Starting with device:", deviceId);
-      
-      if (externalCameraActive) {
-        // eslint-disable-next-line no-console
-        console.log("🎥 [External Camera] Already active");
-        return;
-      }
-      
-      if (!deviceId) {
-        // eslint-disable-next-line no-console
-        console.error("🎥 [External Camera] No device ID provided");
-        setExternalCameraStatus("error");
-        return;
-      }
-      
-      // Check if mediaDevices is available
-      if (!navigator.mediaDevices) {
-        // eslint-disable-next-line no-console
-        console.error("🎥 [External Camera] Media devices not available");
-        setExternalCameraStatus("error");
-        return;
-      }
-      
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera] Starting external camera stream with device:", deviceId);
-      
-      const newExternalStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } }
-      });
-      
-      if (externalVideoRef.current) {
-        externalVideoRef.current.srcObject = newExternalStream;
-      }
-      
-      setExternalCameraStream(newExternalStream);
-      setExternalCameraActive(true);
-      setExternalCameraStatus("active");
-      
-      // Connect to external camera WebSocket
-      const fullExternalWebSocketUrl = `${websocketUrl}/video/external-camera-stream`;
-      // eslint-disable-next-line no-console
-      console.log("🔌 [External Camera WebSocket] Connecting to:", fullExternalWebSocketUrl);
-      
-      // Close any existing external WebSocket first
-      if (externalSocketRef.current && externalSocketRef.current.readyState !== WebSocket.CLOSED) {
-        // eslint-disable-next-line no-console
-        console.log("🔄 [External Camera WebSocket] Closing existing connection");
-        try {
-          externalSocketRef.current.close();
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.warn("🔇 [External Camera WebSocket] Error closing existing connection:", error.message);
-        }
-      }
-      
-      const externalSocket = new WebSocket(fullExternalWebSocketUrl);
-      externalSocketRef.current = externalSocket;
-      
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
-      
-      const sendExternalFrame = () => {
-        if (
-          externalVideoRef.current &&
-          externalSocket.readyState === WebSocket.OPEN &&
-          externalCameraActive
-        ) {
-          canvas.width = externalVideoRef.current.videoWidth;
-          canvas.height = externalVideoRef.current.videoHeight;
-          context.drawImage(externalVideoRef.current, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => {
-            if (blob) externalSocket.send(blob);
-          }, "image/jpeg");
-        }
-      };
-      
-      const externalIntervalId = setInterval(sendExternalFrame, 100);
-      
-      externalSocket.onopen = () => {
-        // eslint-disable-next-line no-console
-        console.log("✅ [External Camera WebSocket] Connected successfully");
-      };
-      
-      externalSocket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          // eslint-disable-next-line no-console
-          console.log("📡 [External Camera WebSocket] Status:", data);
-        } catch (error) {
-          // Non-JSON message, ignore
-        }
-      };
-      
-      externalSocket.onclose = () => {
-        // eslint-disable-next-line no-console
-        console.log("❌ [External Camera WebSocket] Connection closed");
-        clearInterval(externalIntervalId);
-      };
-      
-      externalSocket.onerror = (error) => {
-        // eslint-disable-next-line no-console
-        console.error("💥 [External Camera WebSocket] Error:", error);
-        clearInterval(externalIntervalId);
-      };
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("🎥 [External Camera] Error starting external camera:", error);
-      setExternalCameraStatus("error");
-    }
-  };
 
-  const startExternalCamera = async () => {
-    try {
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera DEBUG] Starting external camera...");
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera DEBUG] selectedExternalDeviceId:", selectedExternalDeviceId);
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera DEBUG] videoDevices:", videoDevices);
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera DEBUG] externalCameraActive:", externalCameraActive);
-      
-      if (externalCameraActive) {
-        // eslint-disable-next-line no-console
-        console.log("🎥 [External Camera] Already active");
-        return;
-      }
-      
-      // If no devices available, try to enumerate again with permissions
-      if (videoDevices.length === 0) {
-        // eslint-disable-next-line no-console
-        console.log("🔄 [External Camera] No devices available, requesting permissions and re-enumerating...");
-        const success = await enumerateCameraDevices(true);
-        if (!success) {
-          // eslint-disable-next-line no-console
-          console.error("❌ [External Camera] Still no devices after re-enumeration");
-          setExternalCameraStatus("error");
-          return;
-        }
-        // Wait for state to update
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      // Try to get external device ID if not set
-      let externalDeviceId = selectedExternalDeviceId;
-      if (!externalDeviceId && videoDevices.length > 0) {
-        // Fall back to second camera if available, otherwise use first camera
-        externalDeviceId = videoDevices.length > 1 ? videoDevices[1].deviceId : videoDevices[0].deviceId;
-        setSelectedExternalDeviceId(externalDeviceId);
-        // eslint-disable-next-line no-console
-        console.log("🎥 [External Camera DEBUG] Auto-selected external device:", externalDeviceId);
-      }
-      
-      if (!externalDeviceId) {
-        // eslint-disable-next-line no-console
-        console.error("🎥 [External Camera] No external device selected");
-        // eslint-disable-next-line no-console
-        console.error("🎥 [External Camera] Available devices:", videoDevices);
-        // eslint-disable-next-line no-console
-        console.error("🎥 [External Camera] Devices length:", videoDevices.length);
-        setExternalCameraStatus("error");
-        return;
-      }
-      
-      // Check if mediaDevices is available
-      if (!navigator.mediaDevices) {
-        // eslint-disable-next-line no-console
-        console.error("🎥 [External Camera] Media devices not available");
-        setExternalCameraStatus("error");
-        return;
-      }
-      
-      // eslint-disable-next-line no-console
-      console.log("🎥 [External Camera] Starting external camera stream with device:", externalDeviceId);
-      
-      const newExternalStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: externalDeviceId } }
-      });
-      
-      if (externalVideoRef.current) {
-        externalVideoRef.current.srcObject = newExternalStream;
-      }
-      
-      setExternalCameraStream(newExternalStream);
-      setExternalCameraActive(true);
-      setExternalCameraStatus("active");
-      
-      // Connect to external camera WebSocket
-      const fullExternalWebSocketUrl = `${websocketUrl}/video/external-camera-stream`;
-      // eslint-disable-next-line no-console
-      console.log("🔌 [External Camera WebSocket] Connecting to:", fullExternalWebSocketUrl);
-      
-      // Close any existing external WebSocket first
-      if (externalSocketRef.current && externalSocketRef.current.readyState !== WebSocket.CLOSED) {
-        // eslint-disable-next-line no-console
-        console.log("🔄 [External Camera WebSocket] Closing existing connection");
-        try {
-          externalSocketRef.current.close();
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.warn("🔇 [External Camera WebSocket] Error closing existing connection:", error.message);
-        }
-      }
-      
-      const externalSocket = new WebSocket(fullExternalWebSocketUrl);
-      externalSocketRef.current = externalSocket;
-      
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
-      
-      const sendExternalFrame = () => {
-        if (
-          externalVideoRef.current &&
-          externalSocket.readyState === WebSocket.OPEN &&
-          externalCameraActive
-        ) {
-          canvas.width = externalVideoRef.current.videoWidth;
-          canvas.height = externalVideoRef.current.videoHeight;
-          context.drawImage(externalVideoRef.current, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => {
-            if (blob) externalSocket.send(blob);
-          }, "image/jpeg");
-        }
-      };
-      
-      const externalIntervalId = setInterval(sendExternalFrame, 100);
-      
-      externalSocket.onopen = () => {
-        // eslint-disable-next-line no-console
-        console.log("✅ [External Camera WebSocket] Connected successfully");
-      };
-      
-      externalSocket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          // eslint-disable-next-line no-console
-          console.log("📡 [External Camera WebSocket] Status:", data);
-        } catch (error) {
-          // Non-JSON message, ignore
-        }
-      };
-      
-      externalSocket.onclose = () => {
-        // eslint-disable-next-line no-console
-        console.log("❌ [External Camera WebSocket] Connection closed");
-        clearInterval(externalIntervalId);
-      };
-      
-      externalSocket.onerror = (error) => {
-        // eslint-disable-next-line no-console
-        console.error("💥 [External Camera WebSocket] Error:", error);
-        clearInterval(externalIntervalId);
-      };
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("🎥 [External Camera] Error starting external camera:", error);
-      setExternalCameraStatus("error");
-    }
-  };
-
-  const stopExternalCamera = () => {
-    try {
-      // eslint-disable-next-line no-console
-      console.log("🛑 [External Camera] Stopping external camera");
-      
-      // Stop external camera stream
-      if (externalCameraStream) {
-        externalCameraStream.getTracks().forEach((track) => track.stop());
-        setExternalCameraStream(null);
-      }
-      
-      // Clear external video source
-      if (externalVideoRef.current) {
-        externalVideoRef.current.srcObject = null;
-      }
-      
-      // Close external WebSocket safely
-      if (externalSocketRef.current && externalSocketRef.current.readyState !== WebSocket.CLOSED) {
-        try {
-          externalSocketRef.current.close();
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.warn("🔇 [External Camera] WebSocket already closed:", error.message);
-        }
-        externalSocketRef.current = null;
-      }
-      
-      setExternalCameraActive(false);
-      setExternalCameraStatus("inactive");
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("🛑 [External Camera] Error stopping external camera:", error);
-    }
-  };
 
   const stopCamera = () => {
     // Stop live camera stream if active
@@ -1404,6 +1450,11 @@ function HomePage() {
                     'לא נבחרה'}</div>
                   <div><strong>🆔 Device ID:</strong> {selectedExternalDeviceId || 'N/A'}</div>
                   <div><strong>📋 זמינות:</strong> {videoDevices.length} מצלמות זמינות</div>
+                  {selectedExternalDeviceId === selectedInternalDeviceId && (
+                    <div style={{color: '#dc3545', fontWeight: 'bold', marginTop: '5px'}}>
+                      ⚠️ אזהרה: מצלמה זהה למצלמה הפנימית!
+                    </div>
+                  )}
                 </div>
                 
                 {/* Manual Test Button */}
@@ -1441,6 +1492,10 @@ function HomePage() {
           onClick={async () => {
             // eslint-disable-next-line no-console
             console.log("🔐 [Manual Permission] Requesting camera permissions...");
+            
+            // Clear user selection flag temporarily to allow initial config load
+            userIsSelectingCameraRef.current = false;
+            
             const success = await enumerateCameraDevices(true);
             if (success) {
               alert("✅ גישה למצלמות הוקמה בהצלחה!");
@@ -1545,9 +1600,35 @@ function HomePage() {
                   <div style={{fontSize: '1.2rem', color: '#ff6b6b', marginBottom: '10px'}}>
                     ⚠️ שגיאה במצלמה חיצונית
                   </div>
-                  <div style={{fontSize: '0.9rem', color: '#ccc'}}>
-                    בדוק את החיבור והגדרות המצלמה
+                  <div style={{fontSize: '0.9rem', color: '#ccc', marginBottom: '10px'}}>
+                    המצלמה לא זמינה או בשימוש
                   </div>
+                  <div style={{fontSize: '0.8rem', color: '#999', textAlign: 'right', lineHeight: '1.4'}}>
+                    <div><strong>פתרונות אפשריים:</strong></div>
+                    <div>• בדוק שהמצלמה מחוברת</div>
+                    <div>• סגור אפליקציות אחרות שמשתמשות במצלמה</div>
+                    <div>• בחר מצלמה אחרת בהגדרות</div>
+                    <div>• רענן את הדף ונסה שוב</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // eslint-disable-next-line no-console
+                      console.log("🔄 [Manual Recovery] Attempting to restart external camera");
+                      handleExternalCameraActivation();
+                    }}
+                    style={{
+                      marginTop: '10px',
+                      padding: '8px 16px',
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    🔄 נסה שוב
+                  </button>
                 </>
               ) : eventActive ? (
                 <>

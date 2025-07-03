@@ -8,7 +8,7 @@ function Navbar() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [ws, setWs] = useState(null);
+  // const [ws, setWs] = useState(null);
 
   // פונקציה לטעינת התרעות מהמונגו
   const loadNotificationsFromDB = useCallback(async () => {
@@ -104,7 +104,7 @@ function Navbar() {
         });
       };
 
-      setWs(websocket);
+      // setWs(websocket);
     };
 
     connectWebSocket();
