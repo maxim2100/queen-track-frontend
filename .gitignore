@@ -173,3 +173,8 @@ excluded_requirements_analysis.md
 EXTERNAL_CAMERA_SYSTEM.md
 requirements_master.md
 diagrams/
+manual-https-fix.sh
+fix-production-https.sh
+fix-https.bat
+fix-https-remote.sh
+diagnose-https.ps1
