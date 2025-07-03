@@ -8,7 +8,7 @@ function Navbar() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [ws, setWs] = useState(null);
+  // const [ws, setWs] = useState(null);
 
   // פונקציה לטעינת התרעות מהמונגו
   const loadNotificationsFromDB = useCallback(async () => {
@@ -32,50 +32,95 @@ function Navbar() {
 
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
+    let websocket = null;
+    let reconnectTimeout = null;
+
     const connectWebSocket = () => {
-      const websocket = new WebSocket(`${websocketUrl}/video/notifications`);
+      const fullNotificationUrl = `${websocketUrl}/video/notifications`;
+      // eslint-disable-next-line no-console
+      console.log("🔔 [Notifications WebSocket Debug] Attempting to connect to:", fullNotificationUrl);
+      // eslint-disable-next-line no-console
+      console.log("🔔 [Notifications WebSocket Debug] Base websocketUrl:", websocketUrl);
+      // eslint-disable-next-line no-console
+      console.log("🔔 [Notifications WebSocket Debug] backendUrl:", backendUrl);
+      // eslint-disable-next-line no-console
+      console.log("🔔 [Notifications WebSocket Debug] Environment variables:", {
+        REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
+        REACT_APP_BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
+        NODE_ENV: process.env.NODE_ENV
+      });
+      
+      websocket = new WebSocket(fullNotificationUrl);
       
       websocket.onopen = () => {
+        // eslint-disable-next-line no-console
+        console.log("✅ [Notifications WebSocket] Connection opened successfully to:", fullNotificationUrl);
         // טעינת התרעות קיימות מהמונגו
         loadNotificationsFromDB();
       };
 
       websocket.onmessage = (event) => {
+        // eslint-disable-next-line no-console
+        console.log("📨 [Notifications WebSocket] Message received:", event.data);
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'bee_notification') {
             addNotification(data);
           }
         } catch (error) {
-          // Silent error handling for production
-          if (process.env.NODE_ENV === 'development') {
-            // console.error('Error parsing notification:', error);
-          }
+          // eslint-disable-next-line no-console
+          console.error("🔔 [Notifications WebSocket] Error parsing message:", error, "Raw data:", event.data);
         }
       };
 
-      websocket.onclose = () => {
-        // נסה להתחבר מחדש אחרי 5 שניות
-        setTimeout(connectWebSocket, 5000);
+      websocket.onclose = (event) => {
+        // eslint-disable-next-line no-console
+        console.log("❌ [Notifications WebSocket] Connection closed:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          url: fullNotificationUrl
+        });
+        
+        // Only attempt to reconnect if the connection was not closed cleanly (e.g., due to network issues)
+        if (!event.wasClean && event.code !== 1000) {
+          // eslint-disable-next-line no-console
+          console.log("🔄 [Notifications WebSocket] Attempting to reconnect in 5 seconds...");
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        }
       };
 
       websocket.onerror = (error) => {
-        if (process.env.NODE_ENV === 'development') {
-          // console.error('Notifications WebSocket error:', error);
-        }
+        // eslint-disable-next-line no-console
+        console.error("💥 [Notifications WebSocket] Error occurred:", {
+          error: error,
+          type: error.type,
+          target: error.target,
+          url: fullNotificationUrl,
+          readyState: websocket.readyState,
+          readyStateText: websocket.readyState === 0 ? "CONNECTING" : 
+                        websocket.readyState === 1 ? "OPEN" : 
+                        websocket.readyState === 2 ? "CLOSING" : "CLOSED"
+        });
       };
 
-      setWs(websocket);
+      // setWs(websocket);
     };
 
     connectWebSocket();
 
     return () => {
-      if (ws) {
-        ws.close();
+      // Clear any pending reconnection timeout
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      
+      // Close the WebSocket connection cleanly
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.close(1000, 'Component unmounting');
       }
     };
-  }, [loadNotificationsFromDB, ws]); // websocketUrl is a constant, no need in dependency array
+  }, [loadNotificationsFromDB]); // Removed 'ws' from dependency array to prevent reconnection loop
 
   const addNotification = (notificationData) => {
     const newNotification = {
@@ -271,7 +316,7 @@ function Navbar() {
       </Link>
 
       {/* תפריט ניווט בימין */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem',direction: 'rtl' }}>
         <ul style={navLinksStyle}>
           <li>
             <Link to="/" style={linkStyle}>
@@ -286,6 +331,11 @@ function Navbar() {
           <li>
             <Link to="/settings" style={linkStyle}>
               ⚙️ הגדרות
+            </Link>
+          </li>
+          <li>
+            <Link to="/debug" style={linkStyle}>
+              🔧 דיבוג
             </Link>
           </li>
         </ul>

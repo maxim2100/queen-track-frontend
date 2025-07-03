@@ -1,6 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react';
-import { BrowserRouter, MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 
 // Custom render function that includes Router
 export const renderWithRouter = (ui, options = {}) => {
@@ -103,8 +103,11 @@ export const createMockFile = (name = 'test.mp4', type = 'video/mp4', content = 
 export const mockConsole = () => {
     const originalConsole = { ...console };
 
+    // eslint-disable-next-line no-console
     console.log = jest.fn();
+    // eslint-disable-next-line no-console
     console.error = jest.fn();
+    // eslint-disable-next-line no-console
     console.warn = jest.fn();
 
     return {

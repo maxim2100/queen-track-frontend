@@ -141,7 +141,7 @@ function TrackPage() {
   }
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <div style={{ padding: '1rem', direction: 'rtl' }}>
       <h1 style={{ textAlign: 'right', marginBottom: '20px' }}>רשימת אירועים</h1>
       
       {events.length === 0 ? (

@@ -169,3 +169,7 @@ quick-server-fix.txt
 CHANGELOG.md
 commit-messages.md
 DEPLOYMENT_UPDATES.md
+excluded_requirements_analysis.md
+EXTERNAL_CAMERA_SYSTEM.md
+requirements_master.md
+diagrams/
