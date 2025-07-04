@@ -5,21 +5,6 @@ on:
     branches: [main, stage]
   pull_request:
     branches: [main, stage]
-  workflow_dispatch:
-    inputs:
-      deployment_target:
-        description: "Choose deployment target"
-        required: true
-        default: "staging"
-        type: choice
-        options:
-          - staging
-          - production
-      skip_tests:
-        description: "Skip tests (for emergency deployments)"
-        required: false
-        default: false
-        type: boolean
 
 env:
   NODE_VERSION: "18"
@@ -29,17 +14,8 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.skip_tests != true
 
     steps:
-      - name: Show manual trigger details
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "🔧 Manual deployment triggered"
-          echo "Target: ${{ inputs.deployment_target }}"
-          echo "Skip tests: ${{ inputs.skip_tests }}"
-          echo "Triggered by: ${{ github.actor }}"
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -80,11 +56,7 @@ jobs:
     name: Build for Staging
     runs-on: ubuntu-latest
     needs: test
-    if: |
-      always() && 
-      (github.ref == 'refs/heads/stage' || 
-       (github.event_name == 'workflow_dispatch' && inputs.deployment_target == 'staging')) &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
+    if: github.ref == 'refs/heads/stage'
 
     steps:
       - name: Checkout code
@@ -124,11 +96,7 @@ jobs:
     name: Build for Production
     runs-on: ubuntu-latest
     needs: test
-    if: |
-      always() && 
-      (github.ref == 'refs/heads/main' || 
-       (github.event_name == 'workflow_dispatch' && inputs.deployment_target == 'production')) &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
@@ -168,10 +136,9 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [build-staging]
-    if: |
-      github.ref == 'refs/heads/stage' || 
-      (github.event_name == 'workflow_dispatch' && inputs.deployment_target == 'staging')
+    if: github.ref == 'refs/heads/stage'
     environment: staging
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -203,7 +170,7 @@ jobs:
           # Upload and deploy
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
 
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
+                          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
           set -e
 
           # Install and setup Nginx if not already installed
@@ -301,9 +268,9 @@ jobs:
 
               # API and Video Routes proxy (including WebSockets)
               location ~ ^/(api|video)/ {
-                  proxy_pass http://162.55.53.52:8000;
+                  proxy_pass http://127.0.0.1:8000;
                   proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$connection_upgrade;
+                  proxy_set_header Upgrade \$http_upgrade;
                   proxy_set_header Connection \$connection_upgrade;
                   proxy_set_header Host \$host;
                   proxy_set_header X-Real-IP \$remote_addr;
@@ -410,10 +377,9 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build-production]
-    if: |
-      github.ref == 'refs/heads/main' || 
-      (github.event_name == 'workflow_dispatch' && inputs.deployment_target == 'production')
+    if: github.ref == 'refs/heads/main'
     environment: production
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -445,7 +411,7 @@ jobs:
           # Upload and deploy
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
 
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << 'EOF'
+                          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
           set -e
 
           # Install required packages
@@ -481,7 +447,7 @@ jobs:
           rm -f /etc/nginx/sites-enabled/queen-track-staging
           rm -f /etc/nginx/sites-enabled/default
 
-          # Create a clean default nginx configuration
+          # Create a clean default nginx configuration to avoid SSL errors
           cat > /etc/nginx/nginx.conf << 'MAIN_NGINX_EOF'
           user www-data;
           worker_processes auto;
@@ -512,54 +478,25 @@ jobs:
           }
           MAIN_NGINX_EOF
 
-          # Create complete nginx configuration with both HTTP and HTTPS
+          # Configure Nginx (initially without SSL)
           cat > /etc/nginx/sites-available/queentrack.online << 'NGINX_EOF'
           # Define connection upgrade mapping
-          map $http_upgrade $connection_upgrade {
+          map \$http_upgrade \$connection_upgrade {
               default upgrade;
               '' close;
           }
 
-          # HTTP server - redirect to HTTPS
           server {
               listen 80;
-              server_name queentrack.online www.queentrack.online;
-              
-              # ACME challenge for Let's Encrypt
-              location /.well-known/acme-challenge/ {
-                  root /var/www/html;
-                  try_files $uri =404;
-              }
-              
-              # Redirect all other traffic to HTTPS
-              location / {
-                  return 301 https://$server_name$request_uri;
-              }
-          }
-
-          # HTTPS server
-          server {
-              listen 443 ssl http2;
               server_name queentrack.online www.queentrack.online;
               root $SERVER_PATH;
               index index.html;
 
-              # SSL Configuration
-              ssl_certificate /etc/letsencrypt/live/queentrack.online/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/queentrack.online/privkey.pem;
-              
-              # Modern SSL configuration
-              ssl_protocols TLSv1.2 TLSv1.3;
-              ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!3DES:!MD5:!PSK;
-              ssl_prefer_server_ciphers off;
-              
-              # SSL session cache
-              ssl_session_cache shared:SSL:50m;
-              ssl_session_timeout 1d;
-              ssl_session_tickets off;
-              
-              # HSTS
-              add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+              # ACME challenge for Let's Encrypt
+              location /.well-known/acme-challenge/ {
+                  root /var/www/html;
+                  try_files \$uri =404;
+              }
 
               # Health check endpoint
               location /health {
@@ -571,19 +508,19 @@ jobs:
               location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
                   expires 1y;
                   add_header Cache-Control "public, immutable";
-                  try_files $uri =404;
+                  try_files \$uri =404;
               }
 
               # API and Video Routes proxy (including WebSockets)
               location ~ ^/(api|video)/ {
-                  proxy_pass http://162.55.53.52:8000;
+                  proxy_pass http://127.0.0.1:8000;
                   proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection $connection_upgrade;
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection \$connection_upgrade;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
                   proxy_read_timeout 86400;
                   proxy_send_timeout 86400;
                   proxy_connect_timeout 5s;
@@ -591,12 +528,12 @@ jobs:
 
               # React Router - catch all other requests
               location / {
-                  try_files $uri $uri/ @fallback;
+                  try_files \$uri \$uri/ @fallback;
               }
 
               # Fallback for React Router
               location @fallback {
-                  rewrite ^.*$ /index.html last;
+                  rewrite ^.*\$ /index.html last;
               }
 
               # Gzip compression
@@ -608,18 +545,16 @@ jobs:
           }
           NGINX_EOF
 
-          ln -sf /etc/nginx/sites-available/queentrack.online /etc/nginx/sites-enabled/
+                      ln -sf /etc/nginx/sites-available/queentrack.online /etc/nginx/sites-enabled/
 
           # Configure firewall
           ufw allow 'Nginx Full' || true
           ufw allow 22 || true
-          ufw allow 443/tcp || true
           ufw --force enable || true
 
           # Test Nginx configuration
-          echo "Testing nginx configuration..."
           nginx -t
-          if [ $? -ne 0 ]; then
+          if [ \$? -ne 0 ]; then
             echo "❌ Nginx configuration test failed!"
             exit 1
           fi
@@ -628,40 +563,41 @@ jobs:
           systemctl start nginx || service nginx start
           systemctl reload nginx || service nginx reload
 
-          # Wait for nginx to start
-          sleep 3
+          # Verify domain points to this server before getting SSL
+          echo "🔍 Verifying domain DNS configuration..."
+          DOMAIN_IP=$(dig +short queentrack.online @8.8.8.8 | tail -n1)
+          SERVER_IP="162.55.53.52"
 
-          # Check if SSL certificate exists and is valid
-          if [ -f "/etc/letsencrypt/live/queentrack.online/fullchain.pem" ]; then
-            echo "✅ SSL certificate found"
-            
-            # Verify SSL certificate validity
-            if openssl x509 -checkend 86400 -noout -in /etc/letsencrypt/live/queentrack.online/fullchain.pem; then
-              echo "✅ SSL certificate is valid"
-            else
-              echo "⚠️ SSL certificate is expiring soon or invalid"
-            fi
+          if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+            echo "❌ Domain queentrack.online does not point to server IP $SERVER_IP (points to: $DOMAIN_IP)"
+            echo "Please update your DNS records to point queentrack.online and www.queentrack.online to $SERVER_IP"
+            echo "Continuing with HTTP for now..."
           else
-            echo "❌ SSL certificate not found!"
-            exit 1
+            echo "✅ Domain DNS is correctly configured"
+            
+            # Test HTTP accessibility before getting SSL
+            echo "🔍 Testing HTTP accessibility..."
+            if curl -f --connect-timeout 10 --max-time 30 http://queentrack.online/health > /dev/null 2>&1; then
+              echo "✅ HTTP site is accessible"
+              
+              # Get SSL certificate
+              echo "🔒 Obtaining SSL certificate..."
+              certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect || {
+                echo "⚠️ SSL certificate installation failed - continuing with HTTP for now"
+                echo "You can manually run: certbot --nginx -d queentrack.online -d www.queentrack.online --non-interactive --agree-tos --email admin@queentrack.online --redirect"
+                echo "Make sure the domain is accessible via HTTP first"
+              }
+            else
+              echo "❌ HTTP site is not accessible - skipping SSL certificate generation"
+              echo "Please ensure the site is accessible via HTTP before requesting SSL"
+            fi
           fi
 
-          # Verify nginx is running and listening on both ports
-          echo "🔍 Checking nginx status..."
-          systemctl status nginx --no-pager || service nginx status
+          # Verify SSL certificate renewal (with timeout to prevent hanging)
+          timeout 20 certbot renew --dry-run || echo "Certificate renewal test failed or timed out"
 
-          echo "🔍 Checking listening ports..."
-          netstat -tlnp | grep nginx
-
-          echo "🔍 Testing local HTTP connection..."
-          curl -f http://localhost/health || echo "❌ Local HTTP health check failed"
-
-          echo "🔍 Testing local HTTPS connection..."
-          curl -f -k https://localhost/health || echo "❌ Local HTTPS health check failed"
-
-          # Test SSL configuration
-          echo "🔍 Testing SSL configuration..."
-          echo | openssl s_client -connect localhost:443 -servername queentrack.online 2>/dev/null | openssl x509 -noout -subject || echo "❌ SSL connection test failed"
+          # Set up automatic certificate renewal
+          echo "0 12 * * * /usr/bin/certbot renew --quiet" | crontab - || echo "Crontab setup failed"
 
           # Clean up
           rm -f "/tmp/$PACKAGE_NAME"
@@ -673,50 +609,57 @@ jobs:
 
           # Wait for service to be ready
           echo "⏳ Waiting for service to start..."
-          sleep 15
+          sleep 30
 
-          # Test HTTPS health endpoint with retries
-          echo "🏥 Testing HTTPS health endpoint..."
-          for i in {1..6}; do
-            echo "Attempt $i/6..."
-            if curl -f --connect-timeout 15 --max-time 30 --retry 2 https://queentrack.online/health; then
-              echo "✅ HTTPS health check passed on attempt $i"
+          # Test if SSL certificate exists, if yes use HTTPS, otherwise use HTTP
+          SSL_EXISTS=false
+          if sshpass -p "${{ secrets.SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no "root@162.55.53.52" "[ -f /etc/letsencrypt/live/queentrack.online/fullchain.pem ]"; then
+            SSL_EXISTS=true
+            echo "🔒 SSL certificate found, testing HTTPS endpoint..."
+            BASE_URL="https://queentrack.online"
+          else
+            echo "📝 No SSL certificate found yet, testing HTTP endpoint..."
+            BASE_URL="http://queentrack.online"
+          fi
+
+          # Test health endpoint
+          echo "🏥 Testing health endpoint at $BASE_URL/health..."
+          for i in {1..5}; do
+            if curl -f --connect-timeout 15 --max-time 45 "$BASE_URL/health"; then
+              echo "✅ Health check passed on attempt $i"
               break
             else
-              echo "❌ HTTPS health check failed on attempt $i"
-              if [ $i -eq 6 ]; then
-                echo "🔍 Final diagnostics..."
-                # Test if port 443 is reachable
-                nc -z -v queentrack.online 443 || echo "Port 443 is not reachable"
-                # Test SSL certificate from outside
-                echo | openssl s_client -connect queentrack.online:443 -servername queentrack.online 2>/dev/null | openssl x509 -noout -subject || echo "SSL certificate check failed"
+              echo "❌ Health check failed on attempt $i"
+              if [ $i -eq 5 ]; then
+                if [ "$SSL_EXISTS" = true ]; then
+                  echo "🔍 Checking SSL certificate..."
+                  openssl s_client -connect www.queentrack.online:443 -servername www.queentrack.online < /dev/null 2>/dev/null | openssl x509 -noout -text | grep -A 2 "Validity" || echo "SSL check failed"
+                fi
                 exit 1
               fi
-              sleep 15
+              sleep 10
             fi
           done
 
-          # Test HTTP to HTTPS redirect
-          echo "🔄 Testing HTTP to HTTPS redirect..."
-          HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 http://queentrack.online/health)
-          if [ "$HTTP_RESPONSE" = "301" ] || [ "$HTTP_RESPONSE" = "302" ]; then
-            echo "✅ HTTP to HTTPS redirect working (response: $HTTP_RESPONSE)"
-          else
-            echo "⚠️ HTTP to HTTPS redirect may not be working properly (response: $HTTP_RESPONSE)"
-          fi
-
-          # Test main HTTPS page
-          echo "🌐 Testing main HTTPS page..."
-          curl -f --connect-timeout 15 --max-time 30 https://queentrack.online/ >/dev/null 2>&1 || {
-            echo "❌ Main HTTPS page test failed"
+          # Test main page
+          echo "🌐 Testing main page..."
+          curl -f --connect-timeout 15 --max-time 45 "$BASE_URL/" >/dev/null 2>&1 || {
+            echo "❌ Main page test failed"
             exit 1
           }
 
-          # Test WWW redirect
-          echo "🔄 Testing WWW redirect..."
-          curl -f --connect-timeout 15 --max-time 30 https://www.queentrack.online/health >/dev/null 2>&1 || {
-            echo "⚠️ WWW redirect test failed"
-          }
+          if [ "$SSL_EXISTS" = true ]; then
+            # Test redirect from HTTP to HTTPS
+            echo "🔄 Testing HTTP to HTTPS redirect..."
+            HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 http://www.queentrack.online/)
+            if [ "$HTTP_RESPONSE" = "301" ] || [ "$HTTP_RESPONSE" = "302" ]; then
+              echo "✅ HTTP to HTTPS redirect working"
+            else
+              echo "⚠️ HTTP to HTTPS redirect may not be working properly (response: $HTTP_RESPONSE)"
+            fi
+          else
+            echo "ℹ️ SSL not configured yet, skipping HTTPS redirect test"
+          fi
 
           echo "✅ All production smoke tests passed!"
 
@@ -724,14 +667,12 @@ jobs:
         if: success()
         run: |
           echo "✅ Production deployment successful!"
-          echo "🌐 Application URL: https://queentrack.online"
-          echo "🔒 SSL Certificate: Configured and working"
-          echo "📊 Health Check: https://queentrack.online/health"
-          echo "🔄 HTTP Redirect: All HTTP traffic redirected to HTTPS"
+          echo "🌐 Application URL: https://queentrack.online (will redirect to HTTPS if SSL is configured)"
+          echo "🔒 SSL Certificate: See deployment logs for status"
+          echo "📊 Health Check: https://queentrack.online/health (or HTTP if SSL not ready)"
 
       - name: Notify deployment failure
         if: failure()
         run: |
           echo "❌ Production deployment failed!"
-          echo "Please check the logs and SSL certificate configuration."
-          echo "You may need to manually verify the nginx configuration on the server."
+          echo "Please check the logs and domain configuration."
