@@ -1,5 +1,28 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 
+/*
+ * FIXED ISSUES:
+ * 1. enumerateCameraDevices() was running continuously due to dependency loops
+ *    - Removed function dependencies that caused endless re-renders
+ *    - Added preserveSelections parameter to control when to override user choices
+ * 
+ * 2. External camera selection was not preserved after triggers
+ *    - Enhanced handleExternalCameraActivation to preserve user's camera selection
+ *    - Added logic to only override selection if the device is no longer available
+ *    - Added user selection protection with userIsSelectingCameraRef flag
+ * 
+ * 3. loadCameraConfig was overriding user selections
+ *    - Added respectUserSelections parameter to prevent overriding user choices
+ *    - Enhanced logging to show when user selections are preserved
+ * 
+ * 4. Infinite retry loop with NotReadableError
+ *    - Added retry limits per device (max 2 attempts per device)
+ *    - Added cooldown periods to prevent rapid retries
+ *    - Added automatic reset of retry counters after 30 seconds
+ *    - Added prevention of simultaneous activation attempts
+ *    - Enhanced error reporting in UI with system status
+ */
+
 const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
 const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
@@ -36,9 +59,11 @@ function HomePage() {
   const stopExternalCameraRef = useRef(null);
   const userIsSelectingCameraRef = useRef(false);
   const configLoadTimeoutRef = useRef(null);
+  const cameraRetryAttemptsRef = useRef(new Map()); // Track retry attempts per device
+  const lastRetryTimeRef = useRef(0); // Prevent rapid retries
 
   // Function to load camera configuration from backend
-  const loadCameraConfig = useCallback(async (skipIfUserSelecting = true) => {
+  const loadCameraConfig = useCallback(async (skipIfUserSelecting = true, respectUserSelections = true) => {
     try {
       // Skip loading if user is currently selecting a camera
       if (skipIfUserSelecting && userIsSelectingCameraRef.current) {
@@ -53,24 +78,33 @@ function HomePage() {
         // eslint-disable-next-line no-console
         console.log("📥 [Camera Config] Loaded configuration:", data);
         
-        if (data.internal_camera_id && videoDevices.some(d => d.deviceId === data.internal_camera_id)) {
-          setSelectedInternalDeviceId(data.internal_camera_id);
+        // Only set internal camera if not already set or if we're not respecting user selections
+        if (!respectUserSelections || !selectedInternalDeviceId) {
+          if (data.internal_camera_id && videoDevices.some(d => d.deviceId === data.internal_camera_id)) {
+            setSelectedInternalDeviceId(data.internal_camera_id);
+          }
         }
         
-        if (data.external_camera_id && videoDevices.some(d => d.deviceId === data.external_camera_id)) {
-          setSelectedExternalDeviceId(data.external_camera_id);
+        // Only set external camera if not already set or if we're not respecting user selections
+        if (!respectUserSelections || !selectedExternalDeviceId) {
+          if (data.external_camera_id && videoDevices.some(d => d.deviceId === data.external_camera_id)) {
+            setSelectedExternalDeviceId(data.external_camera_id);
+            // eslint-disable-next-line no-console
+            console.log("✅ [Camera Config] External camera loaded:", data.external_camera_id);
+          }
+        } else if (respectUserSelections && selectedExternalDeviceId) {
           // eslint-disable-next-line no-console
-          console.log("✅ [Camera Config] External camera loaded:", data.external_camera_id);
+          console.log("🔒 [Camera Config] Preserving user's external camera selection:", selectedExternalDeviceId);
         }
       }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("💥 [Camera Config] Error loading camera config:", error);
     }
-  }, [videoDevices]);
+  }, [videoDevices, selectedInternalDeviceId, selectedExternalDeviceId]);
 
   // Function to enumerate camera devices with permission handling
-  const enumerateCameraDevices = useCallback(async (requestPermissions = false) => {
+  const enumerateCameraDevices = useCallback(async (requestPermissions = false, preserveSelections = true) => {
     try {
       // eslint-disable-next-line no-console
       console.log("📷 [Camera Enumeration] Starting device enumeration...");
@@ -105,26 +139,37 @@ function HomePage() {
       // eslint-disable-next-line no-console
       console.log("📷 [Camera Enumeration] Found cameras:", cameras);
       
+      // Store current selections before updating device list
+      const currentInternalId = selectedInternalDeviceId;
+      const currentExternalId = selectedExternalDeviceId;
+      
       setVideoDevices(cameras);
       
       if (cameras.length > 0) {
-        // Only set default devices if they're not already set
-        if (!selectedInternalDeviceId) {
-          setSelectedInternalDeviceId(cameras[0].deviceId);
+        // Only set default devices if they're not already set AND we're not preserving selections
+        if (!preserveSelections || !currentInternalId) {
+          if (!currentInternalId) {
+            setSelectedInternalDeviceId(cameras[0].deviceId);
+          }
         }
-        if (!selectedExternalDeviceId) {
-          setSelectedExternalDeviceId(cameras.length > 1 ? cameras[1].deviceId : cameras[0].deviceId);
-        }
-        
-        // Try to load saved configuration after devices are detected
-        // Clear any existing timeout
-        if (configLoadTimeoutRef.current) {
-          clearTimeout(configLoadTimeoutRef.current);
+        if (!preserveSelections || !currentExternalId) {
+          if (!currentExternalId) {
+            setSelectedExternalDeviceId(cameras.length > 1 ? cameras[1].deviceId : cameras[0].deviceId);
+          }
         }
         
-        configLoadTimeoutRef.current = setTimeout(() => {
-          loadCameraConfig(true); // Skip if user is selecting
-        }, 1000);
+        // Only load configuration if we're not preserving user selections
+        if (!preserveSelections) {
+          // Try to load saved configuration after devices are detected
+          // Clear any existing timeout
+          if (configLoadTimeoutRef.current) {
+            clearTimeout(configLoadTimeoutRef.current);
+          }
+          
+          configLoadTimeoutRef.current = setTimeout(() => {
+            loadCameraConfig(true, false); // Skip if user is selecting, don't respect user selections on initial load
+          }, 1000);
+        }
         return true;
       } else {
         // eslint-disable-next-line no-console
@@ -137,7 +182,7 @@ function HomePage() {
       setVideoDevices([]);
       return false;
     }
-  }, [selectedInternalDeviceId, selectedExternalDeviceId, loadCameraConfig]);
+  }, ); // Remove dependencies to prevent continuous loop
 
   // Function to stop external camera
   const stopExternalCamera = useCallback(() => {
@@ -169,6 +214,12 @@ function HomePage() {
       
       setExternalCameraActive(false);
       setExternalCameraStatus("inactive");
+      
+      // Reset retry counters when successfully stopping
+      cameraRetryAttemptsRef.current.clear();
+      lastRetryTimeRef.current = 0;
+      // eslint-disable-next-line no-console
+      console.log("🔄 [External Camera] Retry counters reset on stop");
       
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -365,35 +416,89 @@ function HomePage() {
       
       setExternalCameraStatus("error");
       
-      // Try automatic recovery if it's a device conflict
+      // Try automatic recovery if it's a device conflict - with retry limits
       if (error.name === 'NotReadableError' && availableCameras && availableCameras.length > 1) {
-        // eslint-disable-next-line no-console
-        console.log("🔄 [External Camera] Attempting automatic recovery with different device...");
+        // Check if we've already tried this device too many times
+        const currentRetries = cameraRetryAttemptsRef.current.get(deviceId) || 0;
+        const maxRetries = 2; // Limit retries per device
+        const cooldownPeriod = 5000; // 5 seconds between major retry attempts
+        const currentTime = Date.now();
         
-        // Try next available camera
-        const otherCameras = availableCameras.filter(cam => 
-          cam.deviceId !== deviceId && cam.deviceId !== selectedInternalDeviceId
-        );
-        
-        if (otherCameras.length > 0) {
-          const nextDevice = otherCameras[0];
+        if (currentRetries >= maxRetries) {
           // eslint-disable-next-line no-console
-          console.log("🔄 [External Camera] Trying recovery with device:", nextDevice.deviceId);
-          setSelectedExternalDeviceId(nextDevice.deviceId);
+          console.log("🚫 [External Camera] Max retries reached for device:", deviceId);
           
-          // Wait a bit before retrying
-          setTimeout(() => {
-            startExternalCameraWithDevice(nextDevice.deviceId, availableCameras);
-          }, 1000);
+          // Try next available camera that hasn't been exhausted
+          const otherCameras = availableCameras.filter(cam => 
+            cam.deviceId !== deviceId && 
+            cam.deviceId !== selectedInternalDeviceId &&
+            (cameraRetryAttemptsRef.current.get(cam.deviceId) || 0) < maxRetries
+          );
+          
+          if (otherCameras.length > 0 && (currentTime - lastRetryTimeRef.current) > cooldownPeriod) {
+            const nextDevice = otherCameras[0];
+            // eslint-disable-next-line no-console
+            console.log("🔄 [External Camera] Trying recovery with fresh device:", nextDevice.deviceId);
+            setSelectedExternalDeviceId(nextDevice.deviceId);
+            lastRetryTimeRef.current = currentTime;
+            
+            // Wait a bit before retrying
+            setTimeout(() => {
+              startExternalCameraWithDevice(nextDevice.deviceId, availableCameras);
+            }, 1000);
+          } else {
+            // eslint-disable-next-line no-console
+            console.error("❌ [External Camera] All cameras exhausted or in cooldown period");
+            setExternalCameraStatus("error");
+            
+            // Reset retry counters after a longer cooldown
+            setTimeout(() => {
+              cameraRetryAttemptsRef.current.clear();
+              lastRetryTimeRef.current = 0;
+              // eslint-disable-next-line no-console
+              console.log("🔄 [External Camera] Retry counters reset - ready for new attempts");
+            }, 30000); // 30 seconds cooldown
+          }
+        } else {
+          // eslint-disable-next-line no-console
+          console.log("🔄 [External Camera] Attempting automatic recovery with different device...");
+          
+          // Increment retry counter for this device
+          cameraRetryAttemptsRef.current.set(deviceId, currentRetries + 1);
+          
+          // Try next available camera
+          const otherCameras = availableCameras.filter(cam => 
+            cam.deviceId !== deviceId && 
+            cam.deviceId !== selectedInternalDeviceId &&
+            (cameraRetryAttemptsRef.current.get(cam.deviceId) || 0) < maxRetries
+          );
+          
+          if (otherCameras.length > 0) {
+            const nextDevice = otherCameras[0];
+            // eslint-disable-next-line no-console
+            console.log("🔄 [External Camera] Trying recovery with device:", nextDevice.deviceId, `(attempt ${currentRetries + 1}/${maxRetries})`);
+            setSelectedExternalDeviceId(nextDevice.deviceId);
+            
+            // Wait a bit before retrying
+            setTimeout(() => {
+              startExternalCameraWithDevice(nextDevice.deviceId, availableCameras);
+            }, 1000);
+          } else {
+            // eslint-disable-next-line no-console
+            console.error("❌ [External Camera] No more cameras available for retry");
+            setExternalCameraStatus("error");
+          }
         }
       }
     }
   }, [externalCameraActive, selectedInternalDeviceId, stream]);
 
-  // איסוף רשימת מצלמות
+  // איסוף רשימת מצלמות - רק פעם אחת בטעינה
+  // Fixed: Prevent continuous loop by removing function dependencies
+  // Camera enumeration now only runs once on mount and when explicitly requested
   useEffect(() => {
-    enumerateCameraDevices(false);
-  }, [enumerateCameraDevices]);
+    enumerateCameraDevices(false, false); // Don't preserve selections on initial load
+  }, []); // Empty dependency array to run only once on mount
 
   // Clean up when component unmounts
   useEffect(() => {
@@ -443,10 +548,25 @@ function HomePage() {
   // Helper function to handle external camera activation with fresh state
   const handleExternalCameraActivation = useCallback(async () => {
     try {
+      // Prevent multiple simultaneous activation attempts
+      if (externalCameraActive) {
+        // eslint-disable-next-line no-console
+        console.log("🎥 [External Camera] Activation skipped - already active");
+        return;
+      }
+      
+      // Check if we're in a cooldown period
+      const currentTime = Date.now();
+      if (currentTime - lastRetryTimeRef.current < 5000) {
+        // eslint-disable-next-line no-console
+        console.log("🎥 [External Camera] Activation skipped - in cooldown period");
+        return;
+      }
+      
       // eslint-disable-next-line no-console
       console.log("🎥 [External Camera] Activation signal received");
       
-      // Get fresh camera devices
+      // Get fresh camera devices but preserve current selections
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cameras = devices.filter((device) => device.kind === "videoinput");
       
@@ -456,60 +576,81 @@ function HomePage() {
       if (cameras.length === 0) {
         // eslint-disable-next-line no-console
         console.log("🔄 [External Camera] No devices available, requesting permissions and re-enumerating...");
-        const success = await enumerateCameraDevices(true);
+        const success = await enumerateCameraDevices(true, true); // Preserve selections
         if (!success) {
           // eslint-disable-next-line no-console
           console.error("❌ [External Camera] Still no devices after re-enumeration");
           setExternalCameraStatus("error");
           return;
         }
-        // Retry with fresh enumeration
+        // Retry with fresh enumeration - but only once
         await new Promise(resolve => setTimeout(resolve, 1000));
-        return handleExternalCameraActivation();
+        const retriedDevices = await navigator.mediaDevices.enumerateDevices();
+        const retriedCameras = retriedDevices.filter((device) => device.kind === "videoinput");
+        if (retriedCameras.length === 0) {
+          // eslint-disable-next-line no-console
+          console.error("❌ [External Camera] No cameras available after retry");
+          setExternalCameraStatus("error");
+          return;
+        }
+        // Use the retried cameras for the rest of the function
+        cameras.splice(0, cameras.length, ...retriedCameras);
       }
       
-      // Update state with fresh devices
+      // Update state with fresh devices (preserve selections)
       setVideoDevices(cameras);
       
-      // Load camera configuration from backend
-      try {
-        const response = await fetch(`${backendUrl}/video/external-camera-status`);
-        if (response.ok) {
-          const data = await response.json();
-          // eslint-disable-next-line no-console
-          console.log("📥 [External Camera] Loaded configuration:", data);
-          
-          let externalDeviceId = data.external_camera_id;
-          
-          // Validate that the device exists
-          if (externalDeviceId && cameras.some(d => d.deviceId === externalDeviceId)) {
-            setSelectedExternalDeviceId(externalDeviceId);
-            // eslint-disable-next-line no-console
-            console.log("✅ [External Camera] Using configured camera:", externalDeviceId);
-          } else {
-            // Fall back to auto-selection
-            externalDeviceId = cameras.length > 1 ? cameras[1].deviceId : cameras[0].deviceId;
-            setSelectedExternalDeviceId(externalDeviceId);
-            // eslint-disable-next-line no-console
-            console.log("🔄 [External Camera] Auto-selected camera:", externalDeviceId);
-          }
-          
-          // Start external camera with the selected device
-          await startExternalCameraWithDevice(externalDeviceId, cameras);
-        }
-      } catch (error) {
+      // Use currently selected external device ID (preserve user's choice)
+      let externalDeviceId = selectedExternalDeviceId;
+      
+      // Only override if the selected device is no longer available
+      if (!externalDeviceId || !cameras.some(d => d.deviceId === externalDeviceId)) {
         // eslint-disable-next-line no-console
-        console.error("💥 [External Camera] Error loading camera config:", error);
-        // Fall back to auto-selection
-        const fallbackDeviceId = cameras.length > 1 ? cameras[1].deviceId : cameras[0].deviceId;
-        await startExternalCameraWithDevice(fallbackDeviceId, cameras);
+        console.log("🔄 [External Camera] Selected device not available, checking backend config...");
+        
+        // Try to load from backend configuration
+        try {
+          const response = await fetch(`${backendUrl}/video/external-camera-status`);
+          if (response.ok) {
+            const data = await response.json();
+            // eslint-disable-next-line no-console
+            console.log("📥 [External Camera] Loaded configuration:", data);
+            
+            if (data.external_camera_id && cameras.some(d => d.deviceId === data.external_camera_id)) {
+              externalDeviceId = data.external_camera_id;
+              setSelectedExternalDeviceId(externalDeviceId);
+              // eslint-disable-next-line no-console
+              console.log("✅ [External Camera] Using backend configured camera:", externalDeviceId);
+            } else {
+              // Fall back to auto-selection
+              externalDeviceId = cameras.length > 1 ? cameras[1].deviceId : cameras[0].deviceId;
+              setSelectedExternalDeviceId(externalDeviceId);
+              // eslint-disable-next-line no-console
+              console.log("🔄 [External Camera] Auto-selected camera:", externalDeviceId);
+            }
+          }
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error("💥 [External Camera] Error loading camera config:", error);
+          // Fall back to auto-selection
+          externalDeviceId = cameras.length > 1 ? cameras[1].deviceId : cameras[0].deviceId;
+          setSelectedExternalDeviceId(externalDeviceId);
+          // eslint-disable-next-line no-console
+          console.log("🔄 [External Camera] Auto-selected fallback camera:", externalDeviceId);
+        }
+      } else {
+        // eslint-disable-next-line no-console
+        console.log("✅ [External Camera] Using preserved user selection:", externalDeviceId);
       }
+      
+      // Start external camera with the selected device
+      await startExternalCameraWithDevice(externalDeviceId, cameras);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("💥 [External Camera] Activation error:", error);
       setExternalCameraStatus("error");
     }
-  }, [enumerateCameraDevices, startExternalCameraWithDevice]);
+  }, [enumerateCameraDevices, startExternalCameraWithDevice, selectedExternalDeviceId, externalCameraActive]);
 
   // Update refs when functions change
   useEffect(() => {
@@ -652,7 +793,7 @@ function HomePage() {
     setTimeout(() => {
       userIsSelectingCameraRef.current = false;
       // eslint-disable-next-line no-console
-      console.log("🎥 [User Selection] External camera selection completed");
+      console.log("🎥 [User Selection] External camera selection completed - user choice locked:", event.target.value);
     }, 2000);
   };
 
@@ -1496,7 +1637,7 @@ function HomePage() {
             // Clear user selection flag temporarily to allow initial config load
             userIsSelectingCameraRef.current = false;
             
-            const success = await enumerateCameraDevices(true);
+            const success = await enumerateCameraDevices(true, true); // Preserve current selections
             if (success) {
               alert("✅ גישה למצלמות הוקמה בהצלחה!");
             } else {
@@ -1609,11 +1750,20 @@ function HomePage() {
                     <div>• סגור אפליקציות אחרות שמשתמשות במצלמה</div>
                     <div>• בחר מצלמה אחרת בהגדרות</div>
                     <div>• רענן את הדף ונסה שוב</div>
+                    <div>• המתן 30 שניות עד שהמערכת מתאפסת</div>
+                  </div>
+                  <div style={{fontSize: '0.7rem', color: '#666', marginTop: '10px', textAlign: 'center'}}>
+                    <div><strong>סטטוס מערכת:</strong></div>
+                    <div>ניסיונות נוכחיים: {Array.from(cameraRetryAttemptsRef.current.entries()).map(([id, count]) => `${count}`).join(', ') || 'אין'}</div>
+                    <div>זמן איפוס אחרון: {lastRetryTimeRef.current ? new Date(lastRetryTimeRef.current).toLocaleTimeString() : 'אין'}</div>
                   </div>
                   <button
                     onClick={() => {
                       // eslint-disable-next-line no-console
                       console.log("🔄 [Manual Recovery] Attempting to restart external camera");
+                      // Reset retry counters for manual retry
+                      cameraRetryAttemptsRef.current.clear();
+                      lastRetryTimeRef.current = 0;
                       handleExternalCameraActivation();
                     }}
                     style={{
@@ -1627,7 +1777,7 @@ function HomePage() {
                       fontSize: '0.9rem'
                     }}
                   >
-                    🔄 נסה שוב
+                    🔄 נסה שוב (איפוס מלא)
                   </button>
                 </>
               ) : eventActive ? (
@@ -1683,6 +1833,19 @@ function HomePage() {
             >
               אפס מעקב
             </button>
+            <button 
+              onClick={() => {
+                cameraRetryAttemptsRef.current.clear();
+                lastRetryTimeRef.current = 0;
+                setExternalCameraStatus("inactive");
+                // eslint-disable-next-line no-console
+                console.log("🔄 [Manual Reset] Camera retry counters reset");
+                alert("מוני הניסיונות נמחקו! כעת ניתן לנסות שוב עם המצלמה החיצונית.");
+              }}
+              style={{...buttonStyle, backgroundColor: '#28a745', color: 'white', border: 'none', marginLeft: '0.5rem'}}
+            >
+              אפס מוני מצלמה
+            </button>
           </div>
         </div>
         
@@ -1725,6 +1888,13 @@ function HomePage() {
               'לא נבחרה'}</p>
             <p><strong>מצלמות זמינות:</strong> {videoDevices.length} ({videoDevices.map(d => d.label || 'Unknown').join(', ') || 'אין'})</p>
             <p><strong>הרשאות מצלמה:</strong> {videoDevices.length > 0 ? 'ניתנו' : 'לא ניתנו/שגיאה'}</p>
+            <p><strong>ניסיונות מצלמה חיצונית:</strong> {
+              Array.from(cameraRetryAttemptsRef.current.entries()).length > 0 ? 
+              Array.from(cameraRetryAttemptsRef.current.entries()).map(([id, count]) => 
+                `${videoDevices.find(d => d.deviceId === id)?.label || 'Unknown'}: ${count}`
+              ).join(', ') : 'אין'
+            }</p>
+            <p><strong>זמן איפוס אחרון:</strong> {lastRetryTimeRef.current ? new Date(lastRetryTimeRef.current).toLocaleTimeString() : 'אין'}</p>
           </div>
           
           <div>
@@ -1802,6 +1972,20 @@ function HomePage() {
               <li>כשהדבורה חוזרת וחוצה מימין לשמאל - האירוע יסתיים</li>
             </ol>
             <p><strong>סטטוס נוכחי:</strong> אירוע פעיל = {eventActive ? 'כן' : 'לא'}, מיקום אחרון = {lastBeeStatus || 'לא זוהה'}</p>
+          </div>
+        </div>
+        
+        <div style={{backgroundColor: '#fff3cd', padding: '1rem', borderRadius: '6px', margin: '1rem 0', border: '1px solid #ffeaa7'}}>
+          <h4>📹 הגנה מפני לולאות אינסופיות של מצלמה חיצונית</h4>
+          <div style={{fontSize: '0.9rem', color: '#856404'}}>
+            <p><strong>מה קורה כשמצלמות לא זמינות:</strong></p>
+            <ul>
+              <li><strong>🔄 ניסיונות מוגבלים:</strong> מקסימום 2 ניסיונות לכל מצלמה</li>
+              <li><strong>⏱️ זמן המתנה:</strong> 5 שניות בין ניסיונות גדולים</li>
+              <li><strong>🔄 איפוס אוטומטי:</strong> המערכת מתאפסת כל 30 שניות</li>
+              <li><strong>🛑 הגנה מפני שכפול:</strong> מניעת ניסיונות מקבילים</li>
+            </ul>
+            <p><strong>אם יש בעיה:</strong> השתמש בכפתור "אפס מוני מצלמה" למחיקה ידנית של מוני הניסיונות.</p>
           </div>
         </div>
       </div>
