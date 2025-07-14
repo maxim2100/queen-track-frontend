@@ -1,27 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 
-/*
- * FIXED ISSUES:
- * 1. enumerateCameraDevices() was running continuously due to dependency loops
- *    - Removed function dependencies that caused endless re-renders
- *    - Added preserveSelections parameter to control when to override user choices
- * 
- * 2. External camera selection was not preserved after triggers
- *    - Enhanced handleExternalCameraActivation to preserve user's camera selection
- *    - Added logic to only override selection if the device is no longer available
- *    - Added user selection protection with userIsSelectingCameraRef flag
- * 
- * 3. loadCameraConfig was overriding user selections
- *    - Added respectUserSelections parameter to prevent overriding user choices
- *    - Enhanced logging to show when user selections are preserved
- * 
- * 4. Infinite retry loop with NotReadableError
- *    - Added retry limits per device (max 2 attempts per device)
- *    - Added cooldown periods to prevent rapid retries
- *    - Added automatic reset of retry counters after 30 seconds
- *    - Added prevention of simultaneous activation attempts
- *    - Enhanced error reporting in UI with system status
- */
 
 const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
 const backendUrl = process.env.REACT_APP_BACKEND_URL;
@@ -61,6 +39,7 @@ function HomePage() {
   const configLoadTimeoutRef = useRef(null);
   const cameraRetryAttemptsRef = useRef(new Map()); // Track retry attempts per device
   const lastRetryTimeRef = useRef(0); // Prevent rapid retries
+  const didEnumerateRef = useRef(false);
 
   // Function to load camera configuration from backend
   const loadCameraConfig = useCallback(async (skipIfUserSelecting = true, respectUserSelections = true) => {
@@ -182,7 +161,7 @@ function HomePage() {
       setVideoDevices([]);
       return false;
     }
-  }, ); // Remove dependencies to prevent continuous loop
+  }, [selectedInternalDeviceId, selectedExternalDeviceId, loadCameraConfig]); // Remove dependencies to prevent continuous loop
 
   // Function to stop external camera
   const stopExternalCamera = useCallback(() => {
@@ -497,9 +476,12 @@ function HomePage() {
   // Fixed: Prevent continuous loop by removing function dependencies
   // Camera enumeration now only runs once on mount and when explicitly requested
   useEffect(() => {
-    enumerateCameraDevices(false, false); // Don't preserve selections on initial load
-  }, []); // Empty dependency array to run only once on mount
-
+      if (!didEnumerateRef.current) {
+        enumerateCameraDevices(false, false);   // initial discovery
+        didEnumerateRef.current = true;         // lock
+      }
+      // nothing else here – even if enumerateCameraDevices’ identity changes
+  }, [enumerateCameraDevices]);
   // Clean up when component unmounts
   useEffect(() => {
     const cleanup = () => {
