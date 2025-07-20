@@ -6,10 +6,33 @@ export const WEBSOCKET_URLS = {
 };
 
 export const API_ENDPOINTS = {
+  // Core endpoints
   CAMERA_CONFIG: '/video/camera-config',
   EXTERNAL_CAMERA_STATUS: '/video/external-camera-status',
+  
+  // Notifications
   NOTIFICATIONS: '/video/notifications',
   NOTIFICATIONS_MARK_READ: '/video/notifications/mark-all-read',
+  NOTIFICATIONS_DELETE_ALL: '/video/notifications',
+  
+  // Events
+  EVENTS: '/events',
+  EVENT_BY_ID: (id) => `/video/events/${id}`,
+  
+  // Settings
+  SETTINGS: '/video/settings',
+  SETTINGS_PRESETS: '/video/settings/presets',
+  SETTINGS_RESET: '/video/settings/reset',
+  SETTINGS_APPLY_PRESET: (preset) => `/video/settings/preset/${preset}`,
+  
+  // File uploads
+  UPLOAD: '/video/upload',
+  
+  // System
+  HEALTH: '/health',
+  DIAGNOSTICS: '/diagnostics',
+  
+  // Debug endpoints
   DEBUG_BEE_STATUS: '/video/debug/bee-tracking-status',
   DEBUG_MODEL_INFO: '/video/debug/model-info',
   DEBUG_RESET: '/video/debug/reset-tracking',
@@ -131,6 +154,7 @@ export const LOG_PREFIXES = {
   STREAM: '🎥 [Stream Service]',
   CAMERA: '📷 [Camera Service]',
   WEBSOCKET: '🔌 [WebSocket]',
+  API: '🌐 [API]',
   ERROR: '💥 [Error]',
   SUCCESS: '✅ [Success]',
   WARNING: '⚠️ [Warning]',

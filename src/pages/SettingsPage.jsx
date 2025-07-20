@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './SettingsPage.css';
+import { SettingsApiService } from '../services';
 
 const SettingsPage = () => {
   const [settings, setSettings] = useState(null);
@@ -16,8 +17,7 @@ const SettingsPage = () => {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/video/settings`);
-      const data = await response.json();
+      const data = await SettingsApiService.getSettings();
       if (data.status === 'success') {
         setSettings(data.settings);
       }
@@ -31,8 +31,7 @@ const SettingsPage = () => {
 
   const loadPresets = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/video/settings/presets`);
-      const data = await response.json();
+      const data = await SettingsApiService.getPresets();
       if (data.status === 'success') {
         setPresets(data.presets);
       }
@@ -46,15 +45,8 @@ const SettingsPage = () => {
     setMessage('');
     
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/video/settings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings),
-      });
+      const data = await SettingsApiService.updateSettings(settings);
       
-      const data = await response.json();
       if (data.status === 'success') {
         setMessage('Settings saved successfully!');
         setTimeout(() => setMessage(''), 3000);
@@ -75,11 +67,8 @@ const SettingsPage = () => {
     }
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/video/settings/reset`, {
-        method: 'POST',
-      });
+      const data = await SettingsApiService.resetSettings();
       
-      const data = await response.json();
       if (data.status === 'success') {
         setSettings(data.settings);
         setMessage('Settings reset to defaults!');
@@ -93,11 +82,8 @@ const SettingsPage = () => {
 
   const applyPreset = async (presetName) => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/video/settings/preset/${presetName}`, {
-        method: 'POST',
-      });
+      const data = await SettingsApiService.applyPreset(presetName);
       
-      const data = await response.json();
       if (data.status === 'success') {
         setSettings(data.settings);
         setMessage(`Applied ${presetName} preset!`);

@@ -1,22 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { SystemApiService } from '../services';
 
 const DebugPage = () => {
   const [websocketStatus, setWebsocketStatus] = useState({});
   const [backendTest, setBackendTest] = useState(null);
 
   const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
-  const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
   // Test backend connectivity
   const testBackendConnection = useCallback(async () => {
     setBackendTest('testing...');
     try {
-      const response = await fetch(`${backendUrl}/health`);
-      const data = await response.text();
+      const data = await SystemApiService.getHealth();
       setBackendTest({
         status: 'success',
-        response: data,
-        statusCode: response.status
+        response: JSON.stringify(data),
+        statusCode: 200
       });
     } catch (error) {
       setBackendTest({
@@ -24,7 +23,7 @@ const DebugPage = () => {
         error: error.message
       });
     }
-  }, [backendUrl]);
+  }, []);
 
   // Test WebSocket connections
   const testWebSocket = useCallback((endpoint, name) => {
@@ -125,11 +124,11 @@ const DebugPage = () => {
       <div style={sectionStyle}>
         <h2>Constructed URLs</h2>
         <pre>{JSON.stringify({
-          backendUrl,
+          backendUrl: process.env.REACT_APP_BACKEND_URL,
           websocketUrl,
           liveStreamUrl: `${websocketUrl}/video/live-stream`,
           notificationsUrl: `${websocketUrl}/video/notifications`,
-          healthUrl: `${backendUrl}/health`
+          healthUrl: `${process.env.REACT_APP_BACKEND_URL}/health`
         }, null, 2)}</pre>
       </div>
 
