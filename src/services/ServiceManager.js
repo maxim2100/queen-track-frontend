@@ -1,7 +1,12 @@
 /* eslint-disable no-console */
-import NotificationService from './NotificationService';
 import StreamService from './StreamService';
 import CameraService from './CameraService';
+import ApiService from './ApiService';
+import EventsApiService from './EventsApiService';
+import UploadApiService from './UploadApiService';
+import SettingsApiService from './SettingsApiService';
+import SystemApiService from './SystemApiService';
+import NotificationService from './NotificationService';
 import { LOG_PREFIXES } from '../constants';
 
 /**
@@ -14,10 +19,17 @@ class ServiceManager {
     this.listeners = new Map();
     this.isInitialized = false;
     
-    // Register services
+    // Register core services
     this.services.set('notification', NotificationService);
     this.services.set('stream', StreamService);
     this.services.set('camera', CameraService);
+    
+    // Register API services
+    this.services.set('api', ApiService);
+    this.services.set('eventsApi', EventsApiService);
+    this.services.set('uploadApi', UploadApiService);
+    this.services.set('settingsApi', SettingsApiService);
+    this.services.set('systemApi', SystemApiService);
   }
 
   /**

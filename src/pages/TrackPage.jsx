@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-const backendUrl = process.env.REACT_APP_BACKEND_URL;
+import { EventsApiService } from '../services';
 
 function TrackPage() {
   const [events, setEvents] = useState([]);
@@ -15,12 +15,7 @@ function TrackPage() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await fetch(`${backendUrl}/events`); 
-        // כתובת לדוגמה; החליפו לפי מה שה-Backend מאזין
-        if (!response.ok) {
-          throw new Error('Failed to fetch events');
-        }
-        const data = await response.json();
+        const data = await EventsApiService.getAllEvents();
         setEvents(data);
       } catch (err) {
         setError(err.message);
@@ -41,13 +36,13 @@ function TrackPage() {
       return videoUrl;
     }
     
-          // If it's a relative URL starting with /videos/, construct full URL
-      if (videoUrl.startsWith('/videos/')) {
-        return `${backendUrl}${videoUrl}`;
-      }
-      
-      // Fallback: treat as filename and construct URL
-      return `${backendUrl}/videos/${videoUrl}`;
+    // If it's a relative URL starting with /videos/, construct full URL
+    if (videoUrl.startsWith('/videos/')) {
+      return `${process.env.REACT_APP_BACKEND_URL}${videoUrl}`;
+    }
+    
+    // Fallback: treat as filename and construct URL
+    return `${process.env.REACT_APP_BACKEND_URL}/videos/${videoUrl}`;
   };
 
   // Toggle video section visibility
@@ -96,13 +91,7 @@ function TrackPage() {
     setDeletingEvents(prev => new Set([...prev, eventId]));
 
     try {
-      const response = await fetch(`${backendUrl}/video/events/${eventId}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete event');
-      }
+      await EventsApiService.deleteEvent(eventId);
 
       // Remove the event from the state
       setEvents(prev => prev.filter(event => {

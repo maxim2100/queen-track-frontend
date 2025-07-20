@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { NotificationService } from '../services';
 
 const websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
-const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
 function Navbar() {
   const [notifications, setNotifications] = useState([]);
@@ -13,22 +13,19 @@ function Navbar() {
   // פונקציה לטעינת התרעות מהמונגו
   const loadNotificationsFromDB = useCallback(async () => {
     try {
-      const response = await fetch(`${backendUrl}/video/notifications`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        
-        // חישוב מספר התרעות שלא נקראו
-        const unreadCount = data.notifications.filter(n => !n.read).length;
-        setUnreadCount(unreadCount);
-      }
+      const data = await NotificationService.getNotifications();
+      setNotifications(data.notifications || []);
+      
+      // חישוב מספר התרעות שלא נקראו
+      const unreadCount = data.notifications.filter(n => !n.read).length;
+      setUnreadCount(unreadCount);
     } catch (error) {
       // Silent error handling for production
       if (process.env.NODE_ENV === 'development') {
         // console.error('Error loading notifications from database:', error);
       }
     }
-  }, []); // backendUrl is a constant, no need in dependency array
+  }, []); // No dependencies needed
 
   // התחברות ל-WebSocket להתרעות
   useEffect(() => {
@@ -42,7 +39,7 @@ function Navbar() {
       // eslint-disable-next-line no-console
       console.log("🔔 [Notifications WebSocket Debug] Base websocketUrl:", websocketUrl);
       // eslint-disable-next-line no-console
-      console.log("🔔 [Notifications WebSocket Debug] backendUrl:", backendUrl);
+      console.log("🔔 [Notifications WebSocket Debug] backendUrl:", process.env.REACT_APP_BACKEND_URL);
       // eslint-disable-next-line no-console
       console.log("🔔 [Notifications WebSocket Debug] Environment variables:", {
         REACT_APP_WEBSOCKET_URL: process.env.REACT_APP_WEBSOCKET_URL,
@@ -137,18 +134,9 @@ function Navbar() {
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch(`${backendUrl}/video/notifications/mark-all-read`, {
-        method: 'POST'
-      });
-      
-      if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-        setUnreadCount(0);
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          // console.error('Failed to mark notifications as read');
-        }
-      }
+      await NotificationService.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         // console.error('Error marking notifications as read:', error);
@@ -158,19 +146,10 @@ function Navbar() {
 
   const deleteAllNotifications = async () => {
     try {
-      const response = await fetch(`${backendUrl}/video/notifications`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        setNotifications([]);
-        setUnreadCount(0);
-        setShowNotifications(false);
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          // console.error('Failed to delete notifications');
-        }
-      }
+      await NotificationService.deleteAllNotifications();
+      setNotifications([]);
+      setUnreadCount(0);
+      setShowNotifications(false);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         // console.error('Error deleting notifications:', error);

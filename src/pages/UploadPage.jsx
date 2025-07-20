@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-const backendUrl = process.env.REACT_APP_BACKEND_URL;
+import { UploadApiService } from '../services';
 
 function UploadPage() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -15,13 +15,7 @@ function UploadPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const response = await fetch(`${backendUrl}/video/upload`, {
-        method: 'POST',
-        body: formData
-      });
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
+      await UploadApiService.uploadFile(formData);
       setUploadStatus("Success");
       // eslint-disable-next-line no-console
       // console.log('Uploaded successfully!');
