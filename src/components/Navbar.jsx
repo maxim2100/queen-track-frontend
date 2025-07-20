@@ -338,6 +338,11 @@ function Navbar() {
               🔧 דיבוג
             </Link>
           </li>
+          <li>
+            <Link to="/test" style={linkStyle}>
+              🧪 Test
+            </Link>
+          </li>
         </ul>
 
         {/* פעמון התרעות */}
