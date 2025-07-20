@@ -577,7 +577,7 @@ jobs:
             
             # Test HTTP accessibility before getting SSL
             echo "🔍 Testing HTTP accessibility..."
-            if curl -f --connect-timeout 10 --max-time 30 https://queentrack.online/health > /dev/null 2>&1; then
+            if curl -f --connect-timeout 10 --max-time 30 http://queentrack.online/health > /dev/null 2>&1; then
               echo "✅ HTTP site is accessible"
               
               # Get SSL certificate
