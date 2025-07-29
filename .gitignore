@@ -161,6 +161,8 @@ bundle-analyzer-report.html
 
 *.env
 
+# Claude files
+.claude/
 
 WIN_20250211_12_13_00_Pro-002.mp4
 sample-hive-video-maxim.mp4
@@ -178,3 +180,4 @@ fix-production-https.sh
 fix-https.bat
 fix-https-remote.sh
 diagnose-https.ps1
+Documentation/
