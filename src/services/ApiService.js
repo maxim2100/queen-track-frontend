@@ -6,7 +6,7 @@ import { LOG_PREFIXES } from '../constants';
  */
 class ApiService {
   constructor() {
-    this.backendUrl = process.env.REACT_APP_BACKEND_URL;
+    this.backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
     console.log(`${LOG_PREFIXES.INFO} API Service initialized with URL: ${this.backendUrl}`);
   }
 
@@ -23,11 +23,6 @@ class ApiService {
     
     // Remove any leading slashes from endpoint to avoid double slashes
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
-    
-    // Remove '/video' prefix if it exists in both backendUrl and endpoint
-    if (this.backendUrl.endsWith('/api') && cleanEndpoint.startsWith('video/')) {
-      return `${this.backendUrl}/${cleanEndpoint}`;
-    }
     
     return `${this.backendUrl}/${cleanEndpoint}`;
   }
