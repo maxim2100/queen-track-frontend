@@ -108,29 +108,85 @@ const DebugPanel = () => {
   };
 
   const debugPanelStyle = {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     border: '1px solid #ddd',
     borderRadius: '8px',
-    padding: '1rem',
     marginTop: '1rem',
-    maxWidth: '1000px',
-    width: '100%'
+    maxWidth: '1200px',
+    width: '100%',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+  };
+
+  const headerStyle = {
+    backgroundColor: '#f8f9fa',
+    padding: '1rem',
+    borderBottom: '1px solid #ddd',
+    borderRadius: '8px 8px 0 0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.5rem'
   };
 
   const buttonStyle = {
-    padding: '0.6rem 1rem',
-    fontSize: '1rem',
-    marginRight: '1rem',
+    padding: '0.5rem 1rem',
+    fontSize: '0.9rem',
     cursor: 'pointer',
-    border: '1px solid #ccc',
+    border: 'none',
     borderRadius: '4px',
-    backgroundColor: '#fff'
+    color: 'white',
+    transition: 'all 0.2s'
+  };
+
+  const contentStyle = {
+    padding: '1rem'
   };
 
   const gridStyle = {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    gap: '1rem'
+    gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+    gap: '1rem',
+    marginBottom: '1rem'
+  };
+
+  const cardStyle = {
+    backgroundColor: '#f8f9fa',
+    border: '1px solid #e9ecef',
+    borderRadius: '6px',
+    padding: '1rem'
+  };
+
+  const cardHeaderStyle = {
+    fontSize: '1.1rem',
+    fontWeight: 'bold',
+    marginBottom: '0.75rem',
+    color: '#333',
+    borderBottom: '2px solid #007bff',
+    paddingBottom: '0.5rem'
+  };
+
+  const statusItemStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0.4rem 0',
+    borderBottom: '1px solid #e9ecef',
+    fontSize: '0.9rem'
+  };
+
+  const statusLabelStyle = {
+    fontWeight: '500',
+    color: '#495057',
+    flex: 1
+  };
+
+  const statusValueStyle = {
+    color: '#007bff',
+    fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'left',
+    wordBreak: 'break-word'
   };
 
   const infoBoxStyle = {
@@ -142,7 +198,7 @@ const DebugPanel = () => {
   };
 
   const explanationBoxStyle = {
-    backgroundColor: '#d1ecf1',
+    backgroundColor: '#d4f4f7',
     padding: '1rem',
     borderRadius: '6px',
     margin: '1rem 0',
@@ -157,37 +213,57 @@ const DebugPanel = () => {
     border: '1px solid #ffeaa7'
   };
 
+  const historyContainerStyle = {
+    backgroundColor: '#fff',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    maxHeight: '200px',
+    overflowY: 'auto',
+    padding: '0.5rem'
+  };
+
+  const historyItemStyle = {
+    fontSize: '0.85rem',
+    marginBottom: '0.25rem',
+    padding: '0.25rem',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '3px',
+    border: '1px solid #e9ecef'
+  };
+
   return (
     <div style={debugPanelStyle}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-        <h3>מידע דיבוג ומעקב</h3>
-        <div>
+      <div style={headerStyle}>
+        <h3 style={{ margin: 0, color: '#333' }}>🔧 מידע דיבוג ומעקב</h3>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button 
             onClick={fetchModelInfo}
-            style={{...buttonStyle, backgroundColor: '#6f42c1', color: 'white', border: 'none', marginLeft: '0.5rem'}}
+            style={{...buttonStyle, backgroundColor: '#6f42c1'}}
           >
             מידע מודל
           </button>
           <button 
             onClick={fetchDebugInfo}
-            style={{...buttonStyle, backgroundColor: '#17a2b8', color: 'white', border: 'none', marginLeft: '0.5rem'}}
+            style={{...buttonStyle, backgroundColor: '#17a2b8'}}
           >
             רענן מידע דיבוג
           </button>
           <button 
             onClick={resetTracking}
-            style={{...buttonStyle, backgroundColor: '#dc3545', color: 'white', border: 'none'}}
+            style={{...buttonStyle, backgroundColor: '#dc3545'}}
           >
             אפס מעקב
           </button>
           <button 
             onClick={resetCameraRetries}
-            style={{...buttonStyle, backgroundColor: '#28a745', color: 'white', border: 'none', marginLeft: '0.5rem'}}
+            style={{...buttonStyle, backgroundColor: '#28a745'}}
           >
             אפס מוני מצלמה
           </button>
         </div>
       </div>
+
+      <div style={contentStyle}>
       
       {/* Initial Status Setting */}
       <div style={infoBoxStyle}>
@@ -211,86 +287,167 @@ const DebugPanel = () => {
         </div>
       </div>
       
-      <div style={gridStyle}>
-        <div>
-          <h4>סטטוס נוכחי</h4>
-          <p><strong>מיקום דבורה:</strong> {streamingState.lastBeeStatus || 'לא זוהתה'}</p>
-          <p><strong>נקודות מעקב:</strong> {streamingState.positionHistoryCount || 0}</p>
-          <p><strong>מצלמה חיצונית:</strong> {cameraState.externalCameraActive ? 'פעילה' : 'כבויה'} ({cameraState.externalCameraStatus})</p>
-          <p><strong>אירוע פעיל:</strong> {streamingState.eventActive ? 'כן' : 'לא'}</p>
-          <p><strong>פעולת אירוע אחרונה:</strong> {streamingState.eventAction || 'אין'}</p>
-          <p><strong>זיהויים רצופים בפנים:</strong> {streamingState.consecutiveDetections?.inside || 0}</p>
-          <p><strong>זיהויים רצופים בחוץ:</strong> {streamingState.consecutiveDetections?.outside || 0}</p>
-          <p><strong>רצף סטטוסים:</strong> {streamingState.statusSequence?.join(' → ') || 'אין'}</p>
-          <p><strong>WebSocket התראות:</strong> {NotificationService.getConnectionStatus() === 'OPEN' ? 'מחובר' : 'מנותק'}</p>
-          <p><strong>מצלמה חיצונית נבחרת:</strong> {cameraState.selectedExternalDeviceId ? 
-            (cameraState.devices.find(d => d.deviceId === cameraState.selectedExternalDeviceId)?.label || cameraState.selectedExternalDeviceId.substr(0, 20) + '...') : 
-            'לא נבחרה'}</p>
-          <p><strong>מצלמות זמינות:</strong> {cameraState.devices?.length || 0} ({cameraState.devices?.map(d => d.label || 'Unknown').join(', ') || 'אין'})</p>
-          <p><strong>הרשאות מצלמה:</strong> {cameraState.devices?.length > 0 ? 'ניתנו' : 'לא ניתנו/שגיאה'}</p>
-        </div>
-        
-        <div>
-          <h4>סטטוס שירותים</h4>
-          <p><strong>ServiceManager:</strong> {serviceHealth.overall || 'unknown'}</p>
-          {serviceHealth.services && Object.entries(serviceHealth.services).map(([serviceName, status]) => (
-            <div key={serviceName} style={{marginBottom: '0.5rem'}}>
-              <strong>{serviceName}:</strong>
-              <div style={{fontSize: '0.9rem', marginLeft: '1rem'}}>
-                {typeof status === 'object' ? (
-                  Object.entries(status).map(([key, value]) => (
-                    <div key={key}>{key}: {JSON.stringify(value)}</div>
-                  ))
-                ) : (
-                  <div>{JSON.stringify(status)}</div>
-                )}
-              </div>
+        <div style={gridStyle}>
+          {/* Current Status Card */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>📊 סטטוס נוכחי</div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>מיקום דבורה:</span>
+              <span style={statusValueStyle}>{streamingState.lastBeeStatus || 'לא זוהתה'}</span>
             </div>
-          ))}
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>נקודות מעקב:</span>
+              <span style={statusValueStyle}>{streamingState.positionHistoryCount || 0}</span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>מצלמה חיצונית:</span>
+              <span style={statusValueStyle}>
+                {cameraState.externalCameraActive ? 'פעילה' : 'כבויה'} ({cameraState.externalCameraStatus})
+              </span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>אירוע פעיל:</span>
+              <span style={statusValueStyle}>{streamingState.eventActive ? 'כן' : 'לא'}</span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>פעולת אירוע אחרונה:</span>
+              <span style={statusValueStyle}>{streamingState.eventAction || 'אין'}</span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>זיהויים רצופים בפנים:</span>
+              <span style={statusValueStyle}>{streamingState.consecutiveDetections?.inside || 0}</span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>זיהויים רצופים בחוץ:</span>
+              <span style={statusValueStyle}>{streamingState.consecutiveDetections?.outside || 0}</span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>רצף סטטוסים:</span>
+              <span style={statusValueStyle}>{streamingState.statusSequence?.join(' → ') || 'אין'}</span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>WebSocket התראות:</span>
+              <span style={statusValueStyle}>
+                {NotificationService.getConnectionStatus() === 'OPEN' ? 'מחובר' : 'מנותק'}
+              </span>
+            </div>
+          </div>
           
-          {debugInfo && (
-            <div>
-              <p><strong>קו מרכזי X:</strong> {debugInfo.configuration?.center_line_x || 'לא זמין'}</p>
-              <p><strong>רזולוציית מסגרת:</strong> {debugInfo.configuration?.frame_width}x{debugInfo.configuration?.frame_height}</p>
-              <p><strong>זיהויים רצופים נדרשים:</strong> {debugInfo.configuration?.min_consecutive_detections}</p>
-              <p><strong>מחפש מעבר:</strong> {debugInfo.debug_info?.looking_for_crossing || 'לא זמין'}</p>
+          {/* Camera & Services Card */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>📹 מצלמות ושירותים</div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>ServiceManager:</span>
+              <span style={statusValueStyle}>{serviceHealth.overall || 'unknown'}</span>
             </div>
-          )}
-        </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>מצלמות זמינות:</span>
+              <span style={statusValueStyle}>
+                {cameraState.devices?.length || 0} ({cameraState.devices?.map(d => d.label || 'Unknown').join(', ') || 'אין'})
+              </span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>הרשאות מצלמה:</span>
+              <span style={statusValueStyle}>
+                {cameraState.devices?.length > 0 ? 'ניתנו' : 'לא ניתנו/שגיאה'}
+              </span>
+            </div>
+            <div style={statusItemStyle}>
+              <span style={statusLabelStyle}>מצלמה חיצונית נבחרת:</span>
+              <span style={statusValueStyle}>
+                {cameraState.selectedExternalDeviceId ? 
+                  (cameraState.devices.find(d => d.deviceId === cameraState.selectedExternalDeviceId)?.label || 
+                   cameraState.selectedExternalDeviceId.substr(0, 20) + '...') : 
+                  'לא נבחרה'}
+              </span>
+            </div>
+            
+            {debugInfo && (
+              <>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>קו מרכזי X:</span>
+                  <span style={statusValueStyle}>{debugInfo.configuration?.center_line_x || 'לא זמין'}</span>
+                </div>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>רזולוציית מסגרת:</span>
+                  <span style={statusValueStyle}>
+                    {debugInfo.configuration?.frame_width}x{debugInfo.configuration?.frame_height}
+                  </span>
+                </div>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>זיהויים רצופים נדרשים:</span>
+                  <span style={statusValueStyle}>{debugInfo.configuration?.min_consecutive_detections}</span>
+                </div>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>מחפש מעבר:</span>
+                  <span style={statusValueStyle}>{debugInfo.debug_info?.looking_for_crossing || 'לא זמין'}</span>
+                </div>
+              </>
+            )}
+          </div>
 
-        <div>
-          <h4>מידע מודל</h4>
-          {modelInfo && (
-            <div>
-              <p><strong>מודל סיווג:</strong> {modelInfo.classification_model?.model_file}</p>
-              <p><strong>מחלקות זמינות:</strong></p>
-              <ul style={{fontSize: '0.9rem', marginTop: '0.5rem'}}>
-                {modelInfo.classification_model?.available_classes?.map((className, index) => (
-                  <li key={index}>{className}</li>
-                ))}
-              </ul>
-              <p><strong>סף זיהוי:</strong> {modelInfo.detection_threshold}</p>
-              <p><strong>קו מרכזי:</strong> {modelInfo.center_line_x || 'לא זמין'}</p>
-              <p><strong>מימדי מסגרת:</strong> {modelInfo.frame_dimensions || 'לא זמין'}</p>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {debugInfo && debugInfo.position_history?.length > 0 && (
-        <div style={{marginTop: '1rem'}}>
-          <h4>היסטוריית מיקומים אחרונה</h4>
-          <div style={{maxHeight: '200px', overflowY: 'auto', backgroundColor: '#fff', padding: '0.5rem', borderRadius: '4px'}}>
-            {debugInfo.position_history.map((pos, index) => (
-              <div key={index} style={{fontSize: '0.9rem', marginBottom: '0.25rem'}}>
-                נקודה {index + 1}: ({pos[0]}, {pos[1]}) - {pos[3]} - {new Date(pos[2] * 1000).toLocaleTimeString()}
+          {/* Model Info Card */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>🤖 מידע מודל</div>
+            {modelInfo ? (
+              <>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>מודל סיווג:</span>
+                  <span style={statusValueStyle}>{modelInfo.classification_model?.model_file}</span>
+                </div>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>סף זיהוי:</span>
+                  <span style={statusValueStyle}>{modelInfo.detection_threshold}</span>
+                </div>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>קו מרכזי:</span>
+                  <span style={statusValueStyle}>{modelInfo.center_line_x || 'לא זמין'}</span>
+                </div>
+                <div style={statusItemStyle}>
+                  <span style={statusLabelStyle}>מימדי מסגרת:</span>
+                  <span style={statusValueStyle}>{modelInfo.frame_dimensions || 'לא זמין'}</span>
+                </div>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={statusLabelStyle}>מחלקות זמינות:</div>
+                  <div style={{ marginTop: '0.25rem', fontSize: '0.85rem' }}>
+                    {modelInfo.classification_model?.available_classes?.map((className, index) => (
+                      <span key={index} style={{
+                        display: 'inline-block',
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '12px',
+                        fontSize: '0.8rem',
+                        margin: '0.1rem',
+                      }}>
+                        {className}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#666', padding: '1rem' }}>
+                לחץ על "מידע מודל" לטעינת נתונים
               </div>
-            ))}
+            )}
           </div>
         </div>
-      )}
+      
+        {debugInfo && debugInfo.position_history?.length > 0 && (
+          <div style={{ ...cardStyle, marginTop: '1rem' }}>
+            <div style={cardHeaderStyle}>📍 היסטוריית מיקומים אחרונה</div>
+            <div style={historyContainerStyle}>
+              {debugInfo.position_history.map((pos, index) => (
+                <div key={index} style={historyItemStyle}>
+                  נקודה {index + 1}: ({pos[0]}, {pos[1]}) - {pos[3]} - {new Date(pos[2] * 1000).toLocaleTimeString()}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-      <div style={explanationBoxStyle}>
+        <div style={explanationBoxStyle}>
         <h4>🎯 הסבר על מערכת הקו המרכזי החדשה</h4>
         <div style={{fontSize: '0.9rem', color: '#0c5460'}}>
           <p><strong>ההגיון החדש:</strong></p>
@@ -324,6 +481,8 @@ const DebugPanel = () => {
           </ul>
           <p><strong>אם יש בעיה:</strong> השתמש בכפתור "אפס מוני מצלמה" למחיקה ידנית של מוני הניסיונות.</p>
         </div>
+      </div>
+      
       </div>
     </div>
   );

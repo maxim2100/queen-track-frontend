@@ -8,24 +8,76 @@ function TrackPage() {
   const [expandedEvents, setExpandedEvents] = useState(new Set());
   const [deletingEvents, setDeletingEvents] = useState(new Set());
   
+  // Simple filtering state
+  const [filters, setFilters] = useState({
+    date: '',
+    minDuration: '', // in minutes
+    maxDuration: ''  // in minutes
+  });
+  
   // Refs to store video elements for synchronized playback
   const videoRefs = useRef({});
 
-  // בעת טעינת הקומפוננטה, נשלח בקשה ל-Backend להביא את כל האירועים
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const data = await EventsApiService.getAllEvents();
-        setEvents(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Fetch and filter events
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const data = await EventsApiService.getAllEvents();
+      
+      // Apply client-side filtering
+      const filteredData = data.filter(event => {
+        // Date filter
+        if (filters.date) {
+          const eventDate = new Date(event.time_out).toDateString();
+          const filterDate = new Date(filters.date).toDateString();
+          if (eventDate !== filterDate) return false;
+        }
+        
+        // Duration filter (only for completed events)
+        if ((filters.minDuration || filters.maxDuration) && event.time_out && event.time_in) {
+          const outTime = new Date(event.time_out);
+          const inTime = new Date(event.time_in);
+          const durationMinutes = Math.round((inTime - outTime) / 60000);
+          
+          if (filters.minDuration && durationMinutes < parseInt(filters.minDuration)) return false;
+          if (filters.maxDuration && durationMinutes > parseInt(filters.maxDuration)) return false;
+        }
+        
+        return true;
+      });
+      
+      // Sort by most recent first
+      filteredData.sort((a, b) => new Date(b.time_out) - new Date(a.time_out));
+      
+      setEvents(filteredData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // בעת טעינת הקומפוננטה או שינוי פילטרים
+  useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle filter changes
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Reset filters
+  const resetFilters = () => {
+    setFilters({
+      date: '',
+      minDuration: '',
+      maxDuration: ''
+    });
+  };
 
   // Helper function to construct full video URL
   const getFullVideoUrl = (videoUrl) => {
@@ -131,10 +183,64 @@ function TrackPage() {
 
   return (
     <div style={{ padding: '1rem', direction: 'rtl' }}>
-      <h1 style={{ textAlign: 'right', marginBottom: '20px' }}>רשימת אירועים</h1>
+      <h1 style={{ textAlign: 'right', marginBottom: '20px' }}>רשימת אירועים ומדדים</h1>
       
-      {events.length === 0 ? (
-        <p>לא נמצאו אירועים.</p>
+      {/* Simple Filter Bar */}
+      <div style={simpleFilterBarStyle}>
+        <div style={filterItemStyle}>
+          <label style={simpleFilterLabelStyle}>תאריך:</label>
+          <input
+            type="date"
+            value={filters.date}
+            onChange={(e) => handleFilterChange('date', e.target.value)}
+            style={simpleFilterInputStyle}
+          />
+        </div>
+        
+        <div style={filterItemStyle}>
+          <label style={simpleFilterLabelStyle}>משך מינימום (דקות):</label>
+          <input
+            type="number"
+            min="0"
+            placeholder="0"
+            value={filters.minDuration}
+            onChange={(e) => handleFilterChange('minDuration', e.target.value)}
+            style={simpleFilterInputStyle}
+          />
+        </div>
+        
+        <div style={filterItemStyle}>
+          <label style={simpleFilterLabelStyle}>משך מקסימום (דקות):</label>
+          <input
+            type="number"
+            min="0"
+            placeholder="∞"
+            value={filters.maxDuration}
+            onChange={(e) => handleFilterChange('maxDuration', e.target.value)}
+            style={simpleFilterInputStyle}
+          />
+        </div>
+        
+        <button onClick={resetFilters} style={resetFilterButtonStyle}>
+          אפס פילטרים
+        </button>
+      </div>
+
+      {/* Events List Header */}
+      <div style={eventsHeaderStyle}>
+        <h2 style={{ margin: 0, color: '#333' }}>
+          📋 רשימת אירועים ({events.length} תוצאות)
+        </h2>
+        {loading && <span style={{ color: '#007bff' }}>🔄 טוען...</span>}
+      </div>
+      
+      {events.length === 0 && !loading ? (
+        <div style={noEventsStyle}>
+          <p>לא נמצאו אירועים תואמים לפילטרים שנבחרו.</p>
+          <button onClick={resetFilters} style={resetButtonStyle}>
+            אפס פילטרים
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {events.map((event, index) => {
@@ -452,6 +558,79 @@ const deleteButtonStyle = {
   cursor: 'pointer',
   fontSize: '16px',
   transition: 'all 0.2s'
+};
+
+// Simple filter styles
+const simpleFilterBarStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '20px',
+  backgroundColor: '#fff',
+  border: '1px solid #ddd',
+  borderRadius: '8px',
+  padding: '15px',
+  marginBottom: '20px',
+  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  flexWrap: 'wrap'
+};
+
+const filterItemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px'
+};
+
+const simpleFilterLabelStyle = {
+  fontSize: '14px',
+  fontWeight: '500',
+  color: '#333',
+  whiteSpace: 'nowrap'
+};
+
+const simpleFilterInputStyle = {
+  padding: '8px 12px',
+  border: '1px solid #ddd',
+  borderRadius: '4px',
+  fontSize: '14px',
+  width: '140px'
+};
+
+const resetFilterButtonStyle = {
+  padding: '8px 16px',
+  backgroundColor: '#dc3545',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  fontSize: '14px',
+  marginRight: 'auto'
+};
+
+const eventsHeaderStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: '15px',
+  padding: '10px 0'
+};
+
+const noEventsStyle = {
+  textAlign: 'center',
+  padding: '40px',
+  backgroundColor: '#f8f9fa',
+  border: '1px solid #e9ecef',
+  borderRadius: '8px',
+  color: '#666'
+};
+
+const resetButtonStyle = {
+  padding: '10px 20px',
+  backgroundColor: '#007bff',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  marginTop: '10px'
 };
 
 export default TrackPage;
