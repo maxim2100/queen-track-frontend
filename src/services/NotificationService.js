@@ -18,8 +18,8 @@ class NotificationService {
     this.shouldReconnect = true;
     
     // Configuration
-    this.websocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
-    this.backendUrl = process.env.REACT_APP_BACKEND_URL;
+    this.websocketUrl = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8000';
+    this.backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
     
     // State
     this.notifications = [];
