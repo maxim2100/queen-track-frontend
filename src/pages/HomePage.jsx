@@ -7,7 +7,8 @@ import {
   LiveStreamComponent,
   VideoStreamComponent,
   ExternalCameraComponent,
-  DebugPanel
+  DebugPanel,
+  // StatisticsPanel
 } from './HomePage/';
 
 function HomePage() {
@@ -190,6 +191,9 @@ function HomePage() {
           />
         </div>
       </div>
+
+      {/* Statistics Panel */}
+      {/*<StatisticsPanel />*/}
 
       {/* Debug Panel */}
       <DebugPanel />
