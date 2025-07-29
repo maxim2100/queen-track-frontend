@@ -75,3 +75,24 @@ services:
     command: npm start
     stdin_open: true
     tty: true
+# localhost override
+---
+version: "3.8"
+
+services:
+  frontend-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: queen-track-frontend-local
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    command: npm start
+    stdin_open: true
+    tty: true
