@@ -36,12 +36,12 @@ COPY --from=builder /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Create nginx directories and set permissions
-RUN mkdir -p /var/cache/nginx /var/run/nginx && \
-    chown -R nextjs:nodejs /var/cache/nginx /var/run/nginx /usr/share/nginx/html && \
+RUN mkdir -p /var/cache/nginx /var/run/nginx /var/log/nginx && \
+    chown -R nginx:nginx /var/cache/nginx /var/run/nginx /var/log/nginx && \
     chmod -R 755 /usr/share/nginx/html
 
-# Switch to non-root user
-USER nextjs
+# Note: Keep nginx running as root for proper configuration access and port binding
+# The nginx worker processes will run as the nginx user automatically
 
 # Expose port
 EXPOSE 3000
