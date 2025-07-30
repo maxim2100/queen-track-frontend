@@ -16,7 +16,7 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS_DELETE_ALL: '/video/notifications',
   
   // Events
-  EVENTS: '/events',
+  EVENTS: '/events/',
   EVENT_BY_ID: (id) => `/video/events/${id}`,
   
   // Settings
