@@ -408,8 +408,9 @@ jobs:
           PACKAGE_NAME="queen-track-frontend-production-$TIMESTAMP.tar.gz"
           tar -czf "$PACKAGE_NAME" -C build .
 
-          # Upload and deploy
+          # Upload package and corrected nginx configuration
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no "$PACKAGE_NAME" "$SERVER_USER@$SERVER_HOST:/tmp/"
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no nginx-production.conf "$SERVER_USER@$SERVER_HOST:/tmp/nginx-production.conf"
 
                           sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" << EOF
           set -e
@@ -478,72 +479,22 @@ jobs:
           }
           MAIN_NGINX_EOF
 
-          # Configure Nginx (initially without SSL)
-          cat > /etc/nginx/sites-available/queentrack.online << 'NGINX_EOF'
-          # Define connection upgrade mapping
-          map \$http_upgrade \$connection_upgrade {
-              default upgrade;
-              '' close;
-          }
-
-          server {
-              listen 80;
-              server_name queentrack.online www.queentrack.online;
-              root $SERVER_PATH;
-              index index.html;
-
-              # ACME challenge for Let's Encrypt
-              location /.well-known/acme-challenge/ {
-                  root /var/www/html;
-                  try_files \$uri =404;
-              }
-
-              # Health check endpoint
-              location /health {
-                  return 200 "healthy\n";
-                  add_header Content-Type text/plain;
-              }
-
-              # Static assets - serve directly with proper caching
-              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-                  expires 1y;
-                  add_header Cache-Control "public, immutable";
-                  try_files \$uri =404;
-              }
-
-              # API and Video Routes proxy (including WebSockets)
-              location ~ ^/(api|video)/ {
-                  proxy_pass http://127.0.0.1:8000;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$http_upgrade;
-                  proxy_set_header Connection \$connection_upgrade;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_read_timeout 86400;
-                  proxy_send_timeout 86400;
-                  proxy_connect_timeout 5s;
-              }
-
-              # React Router - catch all other requests
-              location / {
-                  try_files \$uri \$uri/ @fallback;
-              }
-
-              # Fallback for React Router
-              location @fallback {
-                  rewrite ^.*\$ /index.html last;
-              }
-
-              # Gzip compression
-              gzip on;
-              gzip_vary on;
-              gzip_min_length 1024;
-              gzip_proxied expired no-cache no-store private auth;
-              gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
-          }
-          NGINX_EOF
+          # Deploy corrected nginx configuration from repository
+          echo "🔧 Deploying corrected production nginx configuration with fixed backend IP..."
+          
+          # Replace SERVER_PATH placeholder in the uploaded config file
+          sed "s|/var/www/queentrack.online|$SERVER_PATH|g" /tmp/nginx-production.conf > /etc/nginx/sites-available/queentrack.online
+          
+          # Verify the configuration was deployed correctly
+          echo "📋 Nginx configuration verification:"
+          echo "✅ Backend IP configuration:"
+          grep -n "162.55.53.52:8000" /etc/nginx/sites-available/queentrack.online | head -3 || echo "❌ Backend IP not found!"
+          echo "✅ WebSocket configuration:"
+          grep -A 2 "location /ws/" /etc/nginx/sites-available/queentrack.online || echo "❌ WebSocket config not found!"
+          echo "✅ Debug endpoints:"
+          grep -n "api/test-connection\|backend-test" /etc/nginx/sites-available/queentrack.online || echo "❌ Debug endpoints not found!"
+          
+          echo "✅ Production nginx configuration deployed successfully from repository"
 
                       ln -sf /etc/nginx/sites-available/queentrack.online /etc/nginx/sites-enabled/
 
